@@ -5,7 +5,7 @@
 import { go, render, ask, toast } from '../app.js';
 import { data, importJSON, removeCustomExercise, wipeAll } from '../store.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
-import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush } from '../push.js';
+import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
 import { esc, dateStr, APP_VERSION, fmtDateLong } from '../util.js';
 import { muscleNames } from '../exercises.js';
 import { discardActive } from './workout.js';
@@ -69,8 +69,11 @@ export const settingsScreen = {
     pushOff: async () => { await pushDisable(); toast('Mitteilungen aus'); render(); },
     pushTest: async () => {
       const ok = await scheduleRestPush(Date.now() + 10000, 'Test: Noch 10 Sekunden Pause', 'So sieht die Mitteilung vor dem Pausenende aus.');
-      toast(ok ? 'Jetzt zum Home-Bildschirm wechseln – in 10 s kommt die Mitteilung' : 'Server nicht erreichbar');
+      if (!ok) return toast('Server nicht erreichbar');
+      pushTestAt = Date.now();
+      toast('Jetzt zum Home-Bildschirm wechseln – in 10 s kommt die Mitteilung');
     },
+    pushCheck: () => checkDelivery(true),
 
     restore: async (el) => {
       const snap = await getSnapshot(el.dataset.id);
@@ -148,10 +151,32 @@ function pushCard() {
     on: 'An. Verlässt du die App während einer Pause, kommt 10 Sekunden vor dem Ende eine Mitteilung. Bist du in der App, piept sie wie gewohnt.',
   }[st];
   const btns = st === 'off' ? '<button class="btn primary big" data-action="pushOn">Mitteilungen einschalten</button>'
-    : st === 'on' ? '<button class="btn big" data-action="pushTest">Test in 10 Sekunden</button><button class="btn ghost full" data-action="pushOff">Ausschalten</button>'
+    : st === 'on' ? '<button class="btn big" data-action="pushTest">Test in 10 Sekunden</button><button class="btn ghost full" data-action="pushCheck">Letzte Zustellung prüfen</button><button class="btn ghost full" data-action="pushOff">Ausschalten</button>'
     : '';
   return `<section class="card">
     <h3 class="section-title first">Mitteilung am Pausenende</h3>
     <p class="muted small">${text}</p>${btns ? `<div class="stack">${btns}</div>` : ''}
+    <p class="source" id="pushDiag">${esc(diagnose())}</p>
   </section>`;
 }
+
+// Nach dem Test: beim Zurückkommen anzeigen, was Apple geantwortet hat
+let pushTestAt = 0;
+async function checkDelivery(manual) {
+  try {
+    const r = await lastDelivery();
+    let msg;
+    if (!r || r.none) msg = 'Noch keine Zustellung beim Server.';
+    else if (r.status >= 200 && r.status < 300) msg = `Apple hat die Mitteilung angenommen (${r.status}). Kommt sie nicht an: iPhone-Einstellungen → Mitteilungen → Gym → Mitteilungen erlauben, Fokus/Nicht stören aus.`;
+    else msg = `Fehler bei Apple: ${r.status} ${r.text || ''}`;
+    const el = document.getElementById('pushDiag');
+    if (el) el.textContent = `${diagnose()} · Letzte Zustellung: ${msg}`;
+    if (manual || pushTestAt) toast(msg.slice(0, 120));
+  } catch (e) {
+    toast('Server nicht erreichbar: ' + e.message);
+  }
+  pushTestAt = 0;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && pushTestAt && Date.now() - pushTestAt > 12000) setTimeout(() => checkDelivery(false), 800);
+});

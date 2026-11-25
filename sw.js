@@ -7,7 +7,7 @@
 // Öffnen der App aktiv.
 // =============================================================
 
-const CACHE = 'gym-v25';
+const CACHE = 'gym-v26';
 
 const FILES = [
   './',

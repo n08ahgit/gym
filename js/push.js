@@ -86,3 +86,24 @@ export async function cancelRestPush() {
   if (!s?.sub || !at || at < Date.now()) return;
   try { await post('/cancel', { endpoint: s.sub.endpoint }); } catch { /* offline: Mitteilung kommt dann eben */ }
 }
+
+/** Letzte Zustellung laut Server: { status, text, at } – zur Fehlersuche. */
+export async function lastDelivery() {
+  const s = stored();
+  if (!s?.sub) return null;
+  const res = await fetch(PUSH_SERVER.replace(/\/$/, '') + '/last', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: s.sub.endpoint }),
+  });
+  return res.json();
+}
+
+/** Diagnose als Text (für die Einstellungen). */
+export function diagnose() {
+  const s = stored();
+  return [
+    `Status: ${status()}`,
+    `Home-Bildschirm-App: ${standalone() ? 'ja' : 'nein'}`,
+    `Erlaubnis: ${'Notification' in window ? Notification.permission : 'fehlt'}`,
+    `Abo: ${s?.sub?.endpoint ? new URL(s.sub.endpoint).host : 'keins'}`,
+  ].join(' · ');
+}
