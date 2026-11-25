@@ -3,11 +3,11 @@
 //
 // WICHTIG nach jeder Code-Änderung: CACHE-Version hochzählen
 // (z. B. 'gym-v2'), sonst lädt das iPhone weiter die alte Version.
-// Die neue Version ist nach dem nächsten (spätestens übernächsten)
-// Öffnen der App aktiv.
+// Die App sucht bei jedem Öffnen/Zurückkehren nach Updates und lädt
+// eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v26';
+const CACHE = 'gym-v27';
 
 const FILES = [
   './',
@@ -73,7 +73,9 @@ const FILES = [
 
 // Installation: alle Dateien in den Cache laden
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' = immer frisch vom Server holen, nie aus dem Browser-Zwischenspeicher
+  // (sonst landen beim Update evtl. alte Dateien im neuen Cache)
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 // Aktivierung: alte Cache-Versionen löschen

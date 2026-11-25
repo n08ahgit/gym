@@ -51,7 +51,10 @@ Kosten: 0 € (Cloudflare Free: 100.000 Anfragen/Tag). Gespeichert wird nur die 
 - **Automatisch:** täglich ein Schnappschuss auf dem iPhone (IndexedDB), 14 Tage. Wiederherstellen unter Einstellungen → Datensicherung.
 - **Datei (iCloud Drive):** iOS erlaubt Web-Apps kein unbemerktes Speichern von Dateien. Die App erinnert deshalb alle 7 Tage; ein Tipp öffnet „In Dateien sichern“.
 
-## Update einspielen
+## Updates
+Neue Version = Dateien hier ins Repo + `CACHE` in `sw.js` hochzählen. Jede installierte App findet das Update beim nächsten Öffnen oder Zurückkehren selbst und lädt es sofort (während eines Workouts erst danach). Daten bleiben erhalten.
+
+## Update einspielen (manuell)
 1. Geänderte Dateien im Repo hochladen (gleiche Namen = ersetzen).
 2. In `sw.js` die Zeile `const CACHE = 'gym-v1';` hochzählen (`gym-v2`, …) – sonst bleibt die alte Version im Cache.
 3. App auf dem iPhone 1–2× schließen und öffnen.

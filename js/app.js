@@ -12,7 +12,7 @@
 // =============================================================
 
 import { unlockAudio } from './audio.js';
-import { esc } from './util.js';
+import { esc, APP_VERSION } from './util.js';
 import { ICON } from './screens/icons.js';
 import { homeScreen } from './screens/home.js';
 import { editScreen, searchScreen, customScreen } from './screens/plan.js';
@@ -100,6 +100,7 @@ function setOriginVars(r) {
 const backStack = [];
 
 export function go(screen, params = {}) {
+  if (updateWaiting && screen === 'home' && !hasActive()) { applyUpdate(); return; }
   const from = ui.screen;
   if (DEPTH[screen] > DEPTH[from]) backStack.push({ screen: from, params: { ...ui.params } });
   else if (DEPTH[screen] < DEPTH[from]) while (backStack.length && DEPTH[backStack[backStack.length - 1].screen] >= DEPTH[screen]) backStack.pop();
@@ -463,9 +464,34 @@ export async function syncWakeLock() {
 
 // ---------- Start ----------
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW-Registrierung fehlgeschlagen', e));
+// ---------- Updates für alle ----------
+// Neue Version auf GitHub (CACHE in sw.js hochgezählt) → beim Öffnen oder
+// Zurückkehren in die App wird sie gefunden, installiert und geladen.
+// Läuft gerade ein Workout, wird erst danach neu geladen (Daten bleiben immer erhalten).
+let updateWaiting = false;
+function applyUpdate() {
+  try { sessionStorage.setItem('gym.updated', '1'); } catch { /* egal */ }
+  location.reload();
 }
+if ('serviceWorker' in navigator) {
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; } // erste Installation, kein Update
+    if (hasActive()) { updateWaiting = true; toast('Update geladen – wird nach dem Workout aktiv'); } else applyUpdate();
+  });
+  navigator.serviceWorker.register('./sw.js').then((reg) => {
+    const check = () => reg?.update?.().catch(() => {});
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch((e) => console.warn('SW-Registrierung fehlgeschlagen', e));
+}
+try {
+  if (sessionStorage.getItem('gym.updated')) {
+    sessionStorage.removeItem('gym.updated');
+    setTimeout(() => toast(`Aktualisiert auf Version ${APP_VERSION}`), 600);
+  }
+} catch { /* egal */ }
+
 
 // Demo (demo.html): leere App einmalig mit Beispieldaten füllen
 if (window.GYM_DEMO) {

@@ -2,7 +2,7 @@
 // util.js – kleine Hilfsfunktionen (Datum, Formatierung, Escaping)
 // =============================================================
 
-export const APP_VERSION = '3.0.0';
+export const APP_VERSION = '3.1.0';
 
 export const WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 export const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
