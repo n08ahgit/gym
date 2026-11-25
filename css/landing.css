@@ -1,0 +1,66 @@
+/* =============================================================
+   landing.css – Startseite (nur im Browser, nicht in der App)
+   Gleiche Welt wie die App: dunkel, Weinrot als einziger Akzent,
+   Glas mit feiner Lichtkante. Eine Spalte, ruhig, gut lesbar.
+   ============================================================= */
+.landing { max-width: 620px; margin: 0 auto; padding: calc(var(--safe-top) + 28px) 20px calc(40px + var(--safe-bottom)); }
+.landing h1 { font-size: clamp(2rem, 8.5vw, 2.75rem); font-weight: 700; line-height: 1.08; letter-spacing: -0.035em; text-wrap: balance; }
+.landing h2 { font-size: 1.353rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 14px; text-wrap: balance; }
+.landing b { font-weight: 600; }
+
+/* Hero */
+.ld-hero { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; padding: 8px 2px 8px; }
+.ld-icon { width: 72px; height: 72px; border-radius: 17px; box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 10px 30px rgba(0, 0, 0, 0.45); }
+.ld-lead { color: var(--muted); font-size: 1.059rem; line-height: 1.5; max-width: 34em; }
+.ld-cta { width: auto; padding: 0 28px; text-decoration: none; margin-top: 4px; }
+@media (max-width: 480px) { .ld-cta { width: 100%; } }
+
+/* Einladung */
+.ld-invite { margin: 26px 0 0; padding: 18px; border-radius: var(--radius-lg); background: linear-gradient(180deg, rgba(138, 51, 66, 0.22), rgba(138, 51, 66, 0.06)), var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(217, 138, 151, 0.28), var(--card-light); }
+.ld-invite h2 { margin-bottom: 8px; }
+.ld-invite p { color: var(--muted); line-height: 1.45; margin-bottom: 14px; }
+.ld-invite .btn { width: 100%; }
+
+/* Bilder der App: waagerecht wischbar, Telefone mit feinem Rahmen */
+.ld-shots { display: flex; gap: 14px; margin: 30px -20px 8px; padding: 6px 20px 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.ld-shots::-webkit-scrollbar { display: none; }
+.ld-phone { flex: 0 0 min(58vw, 230px); margin: 0; scroll-snap-align: center; }
+.ld-phone img { display: block; width: 100%; height: auto; border-radius: 26px; background: var(--surface);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 0 6px #1b2227, 0 0 0 7px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.5); margin: 7px 7px 0; width: calc(100% - 14px); }
+.ld-phone figcaption { text-align: center; color: var(--muted); font-size: 0.824rem; margin-top: 16px; }
+
+/* Abschnitte */
+.ld-section { margin-top: 34px; }
+.ld-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.ld-features li { display: flex; gap: 14px; align-items: flex-start; }
+.ld-features li > span:last-child { display: flex; flex-direction: column; gap: 3px; line-height: 1.4; }
+.ld-features li > span:last-child > span { color: var(--muted); font-size: 0.941rem; }
+.ld-ficon { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; color: var(--accent); background: var(--accent-soft); }
+@media (min-width: 560px) { .ld-features { grid-template-columns: 1fr 1fr; gap: 22px 26px; } }
+
+/* Installation */
+.ld-install-card { padding: 20px 18px; border-radius: var(--radius-lg); background: var(--glass-card); box-shadow: var(--card-light); scroll-margin-top: 20px; }
+.ld-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: flex; flex-direction: column; gap: 14px; }
+.ld-steps li { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-left: 40px; counter-increment: s; line-height: 1.45; }
+.ld-steps li::before { content: counter(s); position: absolute; left: 0; top: -1px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 0.824rem; font-weight: 700; color: #fff; background: var(--accent-fill); }
+.ld-steps small { display: block; color: var(--muted); font-size: 0.824rem; margin-top: 3px; }
+.ld-key { display: inline-grid; place-items: center; width: 28px; height: 28px; margin: 0 2px; vertical-align: -8px; border-radius: 8px; color: #7fa9cf; background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12); }
+.ld-mini { min-height: 40px; padding: 0 14px; font-size: 0.882rem; }
+.ld-warn { margin-bottom: 14px; padding: 12px 14px; border-radius: var(--radius); color: var(--text); background: rgba(217, 154, 78, 0.12); line-height: 1.45; }
+.ld-note { margin-top: 16px; color: var(--muted); font-size: 0.882rem; line-height: 1.45; }
+.ld-install { margin-top: 16px; }
+
+/* Fragen */
+.landing details { border-top: 0.5px solid var(--separator); }
+.landing details:last-of-type { border-bottom: 0.5px solid var(--separator); }
+.landing summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 52px; font-weight: 600; }
+.landing summary::-webkit-details-marker { display: none; }
+.landing summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg) translateY(-3px); transition: transform 200ms var(--ease-out); flex: none; }
+.landing details[open] summary::after { transform: rotate(225deg) translateY(-3px); }
+.landing details p { color: var(--muted); line-height: 1.5; padding: 0 0 16px; }
+
+.ld-foot { margin-top: 30px; display: flex; justify-content: center; }
+.ld-foot .text-btn { color: var(--muted); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+body:has(.landing)::after { display: none; }

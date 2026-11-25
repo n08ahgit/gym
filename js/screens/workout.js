@@ -273,16 +273,19 @@ function viewExercise() {
 /** Vorschlag für heute (doppelte Progression) + Scheibenrechner. */
 function coachBox(it) {
   const sug = suggest(it.exId);
+  const plates = hasPlates(it.exId) ? `<button class="chip" data-action="plates">${ICON.plates} Scheiben</button>` : '';
+  // Nur zeigen, wenn mehr Gewicht vorgeschlagen wird – sonst gilt einfach "Letztes Mal"
+  if (sug.kind !== 'up') return plates ? `<div class="coach-plain">${plates}</div>` : '';
   const canUse = sug.w != null || sug.target != null;
   return `<div class="coach">
     <div class="coach-main">
-      <span class="coach-label">Vorschlag heute</span>
+      <span class="coach-label">Vorschlag heute: mehr Gewicht</span>
       <b class="coach-head">${esc(sug.head)}</b>
       <span class="coach-why">${esc(sug.why)}</span>
     </div>
     <div class="coach-actions">
-      ${canUse && sug.kind !== 'time' ? '<button class="chip" data-action="useSug">Übernehmen</button>' : ''}
-      ${hasPlates(it.exId) ? `<button class="chip" data-action="plates">${ICON.plates} Scheiben</button>` : ''}
+      ${canUse ? '<button class="chip" data-action="useSug">Übernehmen</button>' : ''}
+      ${plates}
     </div>
   </div>`;
 }

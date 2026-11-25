@@ -5,7 +5,11 @@
   <!-- viewport-fit=cover: Inhalt bis unter Notch/Home-Indicator, Abstände per safe-area-inset -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Gym</title>
-  <meta name="description" content="Trainingsplan, Workout-Tracker und Jahresübersicht fürs Fitnessstudio.">
+  <meta name="description" content="Trainingsplan, Workout-Tracker mit Pausen-Timer, Fortschritt und Rangliste mit Freunden. Kostenlos, ohne Konto.">
+  <meta property="og:title" content="Gym – Trainingsplan & Workout-Tracker">
+  <meta property="og:description" content="Kostenlos, ohne Konto, ohne Werbung. Einfach zum Home-Bildschirm hinzufügen.">
+  <meta property="og:image" content="icons/icon-512.png">
+  <meta property="og:type" content="website">
   <meta name="theme-color" content="#0f1519">
 
   <!-- PWA / iOS -->
@@ -26,6 +30,14 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <noscript>Diese App braucht JavaScript.</noscript>
-  <script type="module" src="js/app.js"></script>
+  <script type="module">
+    // Vom Home-Bildschirm gestartet → App. Im Browser geöffnet → Startseite mit Anleitung.
+    // "?app" oder einmal "Im Browser ausprobieren" gewählt → App auch im Browser.
+    let web = false;
+    try { web = localStorage.getItem('gym.web') === '1'; } catch {}
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (standalone || web || new URLSearchParams(location.search).has('app')) import('./js/app.js');
+    else import('./js/landing.js');
+  </script>
 </body>
 </html>

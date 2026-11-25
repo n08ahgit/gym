@@ -124,6 +124,13 @@ export function setPlanDay(idx, workout) {
   commitPlan(days);
 }
 
+/** Mehrere Wochentage auf einmal setzen: { 2: workout, 4: workout } (eine Plan-Version). */
+export function setPlanDays(map) {
+  const days = currentPlan();
+  for (const [i, w] of Object.entries(map)) days[+i] = w ? clone(w) : null;
+  commitPlan(days);
+}
+
 /**
  * Neue Plan-Version speichern. Gab es heute schon eine Version, wird sie
  * überschrieben (mehrere Änderungen am selben Tag = eine Version).

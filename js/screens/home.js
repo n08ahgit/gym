@@ -2,8 +2,8 @@
 // home.js – Hauptbildschirm: Jahresübersicht, Wochenplan, Workout-Leiste
 // =============================================================
 
-import { go, render, openSheet, closeSheet, ask, ui } from '../app.js';
-import { currentPlan, data, sessionsByDate } from '../store.js';
+import { go, render, openSheet, closeSheet, ask, ui, toast } from '../app.js';
+import { currentPlan, data, sessionsByDate, setPlanDays } from '../store.js';
 import { WEEKDAYS, WD_SHORT, dateStr, parseDate, addDays, weekdayIdx, esc, fmtClock } from '../util.js';
 import { renderYear, dayInfoText, scrollYearToToday } from '../year.js';
 import { getActive, startWorkout, discardActive } from './workout.js';
@@ -201,9 +201,11 @@ function openDaySheet(idx) {
        ${active ? '<button class="btn primary big" data-action="resume">Laufendes Workout fortsetzen</button>' : ''}
        ${startBtn}
        <button class="btn big" data-action="edit">${w ? 'Bearbeiten' : 'Workout anlegen'}</button>
+       ${w && w.exercises.length ? '<button class="btn ghost big" data-action="copy">Auf andere Tage kopieren</button>' : ''}
      </div>`,
     {
       resume: () => go('workout'),
+      copy: () => openCopySheet(idx),
       edit: () => go('edit', { idx }),
       start: async () => {
         if (active) {
@@ -216,4 +218,38 @@ function openDaySheet(idx) {
       },
     }
   );
+}
+
+/** Workout eines Tages auf andere Wochentage kopieren (eigenständige Kopien). */
+function openCopySheet(idx) {
+  const plan = currentPlan();
+  const w = plan[idx];
+  const sel = new Set();
+  const chips = WEEKDAYS.map((name, i) => i === idx ? '' :
+    `<button class="copy-day" data-action="pick" data-i="${i}" aria-pressed="false">
+      <span class="copy-day-name">${name}</span>
+      <span class="copy-day-now">${plan[i] ? esc(plan[i].name) : 'Pause'}</span>
+      <span class="copy-check">${ICON.check}</span></button>`).join('');
+  openSheet(`<h2 class="sheet-title">„${esc(w.name)}“ kopieren</h2>
+    <p class="muted small sheet-sub">Auf welche Tage? Übungen, Sätze und Pausen werden übernommen.</p>
+    <div class="copy-days">${chips}</div>
+    <div class="sheet-actions"><button class="btn primary big" data-action="doCopy" id="copyBtn" disabled>Kopieren</button></div>`, {
+    pick: (el) => {
+      const i = Number(el.dataset.i);
+      if (sel.has(i)) sel.delete(i); else sel.add(i);
+      el.setAttribute('aria-pressed', sel.has(i));
+      const btn = document.getElementById('copyBtn');
+      btn.disabled = !sel.size;
+      btn.textContent = sel.size ? `Auf ${sel.size} ${sel.size === 1 ? 'Tag' : 'Tage'} kopieren` : 'Kopieren';
+    },
+    doCopy: async () => {
+      const days = [...sel].sort();
+      const over = days.filter((i) => plan[i]);
+      closeSheet();
+      if (over.length && !(await ask('Bestehende Workouts ersetzen?', `${over.map((i) => `${WEEKDAYS[i]} (${plan[i].name})`).join(', ')} ${over.length === 1 ? 'wird' : 'werden'} durch „${w.name}“ ersetzt. Vergangene Tage bleiben unverändert.`, 'Ersetzen', true))) return;
+      setPlanDays(Object.fromEntries(days.map((i) => [i, w])));
+      toast(`„${w.name}“ auf ${days.map((i) => WD_SHORT[i]).join(', ')} kopiert`);
+      render();
+    },
+  });
 }

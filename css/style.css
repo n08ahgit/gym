@@ -578,6 +578,9 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 .glass-circle.sm svg { width: 18px; height: 18px; }
 .coach { display: flex; align-items: flex-start; gap: 12px; margin-top: 14px; padding: 12px 14px; text-align: left; border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.1); }
+.coach-plain { display: flex; justify-content: center; margin-top: 12px; }
+.coach-plain .chip { min-height: 36px; padding: 0 14px; font-size: 0.824rem; display: inline-flex; align-items: center; gap: 4px; }
+.coach-plain .chip svg { width: 16px; height: 16px; }
 .coach-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .coach-label { font-size: 0.706rem; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
 .coach-head { font-size: 1.059rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -679,6 +682,17 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 .cmp b.lead { color: var(--text); }
 .cmp.head b { color: var(--text); font-size: 0.765rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmp-l { color: var(--muted); }
+
+/* Workout auf andere Tage kopieren */
+.copy-days { display: flex; flex-direction: column; margin-bottom: 16px; border-radius: var(--radius); background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); overflow: hidden; }
+.copy-day { position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 14px; text-align: left; }
+.copy-day + .copy-day { border-top: 0.5px solid var(--separator); }
+.copy-day-name { font-weight: 600; width: 6.5em; }
+.copy-day-now { flex: 1; color: var(--muted); font-size: 0.882rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-check { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; box-shadow: inset 0 0 0 1.5px var(--border-strong); color: transparent; transition: background-color 150ms ease, color 150ms ease; }
+.copy-check svg { width: 14px; height: 14px; stroke-width: 3; }
+.copy-day[aria-pressed="true"] .copy-check { background: var(--accent-fill); box-shadow: none; color: #fff; }
+.copy-day:active { background: rgba(255, 255, 255, 0.05); }
 
 /* ---------- Bildschirmwechsel (View Transitions) ---------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 380ms; animation-timing-function: var(--ease-drawer); }
