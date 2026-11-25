@@ -21,6 +21,8 @@
 .ld-invite h2 { margin-bottom: 8px; }
 .ld-invite p { color: var(--muted); line-height: 1.45; margin-bottom: 14px; }
 .ld-invite .btn { width: 100%; }
+.ld-code { margin: 4px 0 14px; padding: 14px; border-radius: var(--radius); text-align: center; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 2rem; font-weight: 700; letter-spacing: 0.2em; background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
 
 /* Bilder der App: waagerecht wischbar, Telefone mit feinem Rahmen */
 .ld-shots { display: flex; gap: 14px; margin: 30px -20px 8px; padding: 6px 20px 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }

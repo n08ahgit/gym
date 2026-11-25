@@ -1,12 +1,13 @@
 // =============================================================
 // friends.js (Screen) – Tab "Freunde": Rangliste, eigenen Stand teilen,
-// Freund per Link/Code hinzufügen.
+// Freund per kurzem Code (z. B. K7Q2MX) oder Link hinzufügen.
+// Stände werden beim Öffnen automatisch vom Server aktualisiert.
 // =============================================================
 
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig } from '../util.js';
-import { BOARDS, BIG3, leaderboard, myLink, myStats, decodeFriend, upsertFriend, removeFriend } from '../friends.js';
+import { BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends } from '../friends.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 
@@ -60,31 +61,43 @@ export const friendsScreen = {
         <div class="card-head"><h2>Rangliste</h2><span class="muted small">${BOARDS[key].sub}</span></div>
         <div class="filter-row tight">${seg}</div>
         ${list}
-        ${noFriends ? '<p class="note">Noch keine Freunde. Teile deinen Link – öffnet ihn jemand mit dieser App, erscheint ihr gegenseitig in der Rangliste, sobald er seinen Link zurückschickt.</p>'
+        ${noFriends ? '<p class="note">Noch keine Freunde. Schick deinen Code per WhatsApp – fügt ihr euch gegenseitig hinzu, seht ihr euch in der Rangliste. Die Zahlen aktualisieren sich danach von selbst.</p>'
           : `<p class="note">${gapText(key, rows)}</p>`}
       </section>
 
       <section class="card">
-        <div class="card-head"><h2>Dein Stand</h2></div>
-        <label class="label first" for="pname">Dein Name in der Rangliste</label>
-        <input id="pname" class="input" data-input="pname" value="${esc(data.profile.name)}" placeholder="z. B. Alex" maxlength="24" autocomplete="off">
-        <button class="btn primary big full" data-action="share">${ICON.share} Stand teilen</button>
-        <p class="note">Geteilt werden nur Name und Kennzahlen (Trainings, Streak, Volumen, Kraftwerte) – keine einzelnen Workouts. Kein Server: dein Stand aktualisiert sich bei Freunden, wenn du den Link neu schickst.</p>
+        <div class="card-head"><h2>Freund hinzufügen</h2></div>
+        <div class="add-row">
+          <input id="fcode" class="input code-input" placeholder="Code, z. B. K7Q2MX" maxlength="80" autocomplete="off" autocapitalize="characters" spellcheck="false" data-enter="addFriend">
+          <button class="btn" data-action="addFriend">Hinzufügen</button>
+        </div>
       </section>
 
       <section class="card">
-        <div class="card-head"><h2>Freund hinzufügen</h2></div>
-        <p class="muted small">Link öffnen genügt. Oder Code bzw. Link hier einfügen:</p>
-        <div class="add-row">
-          <input id="fcode" class="input" placeholder="Link oder Code" autocomplete="off" autocapitalize="off" spellcheck="false" data-enter="addFriend">
-          <button class="btn" data-action="addFriend">Hinzufügen</button>
-        </div>
+        <div class="card-head"><h2>Dein Code</h2></div>
+        <label class="label first" for="pname">Dein Name in der Rangliste</label>
+        <input id="pname" class="input" data-input="pname" value="${esc(data.profile.name)}" placeholder="z. B. Alex" maxlength="24" autocomplete="off">
+        ${data.profile.name ? `<button class="my-code" data-action="copyCode" aria-label="Code kopieren"><span class="my-code-val">${shortCode()}</span><span class="muted small">Antippen zum Kopieren</span></button>` : ''}
+        <button class="btn primary big full" data-action="share">${ICON.share} Einladung per WhatsApp & Co.</button>
+        <p class="note">Freunde sehen nur deinen Namen und Kennzahlen (Trainings, Streak, Volumen, Kraftwerte) – keine einzelnen Workouts.</p>
       </section>
     </main>${tabBar('friends')}`;
   },
 
+  after() {
+    // Eigenen Stand hochladen, Freunde aktualisieren (still im Hintergrund)
+    publishMe();
+    refreshFriends().then((changed) => { if (changed && ui.screen === 'friends' && !document.querySelector('#fcode:focus, #pname:focus')) render(); });
+  },
+
   inputs: {
-    pname: (el) => { data.profile.name = el.value.trim().slice(0, 24); save(); },
+    pname: (el) => {
+      const had = !!data.profile.name;
+      data.profile.name = el.value.trim().slice(0, 24);
+      save();
+      clearTimeout(nameTimer);
+      nameTimer = setTimeout(() => { publishMe(true); if (!had && data.profile.name) render(); }, 900);
+    },
   },
 
   actions: {
@@ -95,27 +108,35 @@ export const friendsScreen = {
         document.getElementById('pname').focus();
         return toast('Bitte zuerst deinen Namen eingeben');
       }
-      const url = myLink();
-      const text = `Mein Trainingsstand – öffne den Link mit deiner Gym-App, dann sind wir in der Rangliste:`;
+      await publishMe(true);
+      const url = shortLink();
+      const text = `${data.profile.name} lädt dich zur Gym-Rangliste ein.\nMein Code: ${shortCode()}\n\nApp kostenlos installieren und beitreten:`;
       if (navigator.share) {
         try { await navigator.share({ title: 'Gym-Rangliste', text, url }); return; } catch (e) { if (e.name === 'AbortError') return; }
       }
-      try { await navigator.clipboard.writeText(url); toast('Link kopiert'); } catch { prompt('Link kopieren:', url); }
+      try { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Einladung kopiert'); } catch { prompt('Kopieren:', url); }
     },
-    addFriend: () => {
+    copyCode: async () => {
+      try { await navigator.clipboard.writeText(shortCode()); toast(`Code ${shortCode()} kopiert`); } catch { prompt('Code:', shortCode()); }
+    },
+    addFriend: async () => {
       const el = document.getElementById('fcode');
       try {
-        const res = addFromCode(el.value);
-        if (res) { el.value = ''; render(); }
+        if (await addFromCode(el.value)) { el.value = ''; render(); }
       } catch (e) { toast(e.message); }
     },
     friend: (el) => openFriend(el.dataset.id),
   },
 };
 
-/** Code/Link übernehmen und Rückmeldung geben. */
-export function addFromCode(code) {
-  const f = decodeFriend(code);
+let nameTimer;
+
+/** Kurzer Code, kurzer Link oder alter langer Link → Freund übernehmen. */
+export async function addFromCode(input) {
+  const short = parseShort(input);
+  if (!short && !String(input).includes('#f=') && String(input).trim().length < 20) throw new Error('Bitte den 6-stelligen Code eingeben, z. B. K7Q2MX');
+  if (short && short === data.profile.code) { toast('Das ist dein eigener Code'); return false; }
+  const f = short ? await fetchFriend(short) : decodeFriend(input);
   const r = upsertFriend(f);
   if (r === 'self') { toast('Das ist dein eigener Link'); return false; }
   if (r === 'old') { toast(`Du hast schon einen neueren Stand von ${f.name}`); return false; }

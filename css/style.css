@@ -672,7 +672,13 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 .you { font-size: 0.706rem; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px; vertical-align: 1px; }
 .friends .card:first-child { padding-bottom: 12px; }
 .label.first { margin-top: 0; }
-.add-row { display: flex; gap: 8px; margin-top: 10px; }
+.add-row { display: flex; gap: 8px; }
+.code-input { text-transform: uppercase; letter-spacing: 0.08em; font-variant-numeric: tabular-nums; }
+.code-input::placeholder { text-transform: none; letter-spacing: 0; }
+.my-code { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; margin: 14px 0 2px; padding: 14px; border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.my-code-val { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 1.8rem; font-weight: 700; letter-spacing: 0.18em; color: var(--text); }
+.my-code:active { background: rgba(255, 255, 255, 0.07); }
 .add-row .input { flex: 1; min-width: 0; font-weight: 500; }
 .add-row .btn { min-height: 50px; }
 .cmp-list { list-style: none; margin: 8px 0 16px; padding: 0; border-radius: var(--radius); background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); }

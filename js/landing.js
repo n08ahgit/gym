@@ -11,7 +11,11 @@ const ua = navigator.userAgent;
 const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = /Android/.test(ua);
 const inApp = /CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|Line\/|GSA\/|WhatsApp|Snapchat/.test(ua);
-const appUrl = location.href.split('#')[0].split('?')[0];
+import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
+
+const shortInvite = location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1]?.toUpperCase() || null;
+// Bei Einladungs-Links (…/f/CODE) zeigt "Link kopieren" auf die Startseite, nicht auf die Einladung
+const appUrl = shortInvite ? `${SHARE_BASE}/` : location.href.split('#')[0].split('?')[0];
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const svg = (d, w = 22) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -82,8 +86,19 @@ function steps() {
     </ol>`;
 }
 
-function render() {
-  const inv = inviteFrom(location.hash);
+async function shortInviteInfo() {
+  if (!shortInvite) return null;
+  try {
+    const r = await fetch(`${PUSH_SERVER}/friend/${shortInvite}`);
+    const e = r.ok ? await r.json() : null;
+    return { name: e?.name || null, code: shortInvite };
+  } catch {
+    return { name: null, code: shortInvite };
+  }
+}
+
+async function render() {
+  const inv = (await shortInviteInfo()) || inviteFrom(location.hash);
   document.title = 'Gym – Trainingsplan & Workout-Tracker';
   const root = document.getElementById('app');
   root.className = 'landing';
@@ -96,9 +111,13 @@ function render() {
     </header>
 
     ${inv ? `<section class="ld-invite">
-      <h2>${esc(inv.name)} hat dich zur Rangliste eingeladen</h2>
-      <p>Installiere die App, öffne sie und geh auf <b>Freunde → Freund hinzufügen</b>. Dort den Code einfügen:</p>
-      <button class="btn big ld-copy-code" data-copy="${esc(inv.code)}">${I.copy} Einladungscode kopieren</button>
+      <h2>${inv.name ? `${esc(inv.name)} lädt dich zur Gym-Rangliste ein` : 'Einladung zur Gym-Rangliste'}</h2>
+      ${inv.code.length === 6
+        ? `<div class="ld-code" aria-label="Einladungscode">${esc(inv.code)}</div>
+           <p>1. App unten installieren · 2. App öffnen → <b>Freunde</b> · 3. Bei <b>Freund hinzufügen</b> diesen Code eingeben.</p>
+           <button class="btn big" data-copy="${esc(inv.code)}">${I.copy} Code kopieren</button>`
+        : `<p>Installiere die App, öffne sie und geh auf <b>Freunde → Freund hinzufügen</b>. Dort den Code einfügen:</p>
+           <button class="btn big ld-copy-code" data-copy="${esc(inv.code)}">${I.copy} Einladungscode kopieren</button>`}
     </section>` : ''}
 
     <section class="ld-shots" aria-label="Bilder der App">
@@ -138,7 +157,7 @@ function render() {
     }
     if (e.target.closest('[data-web]')) {
       try { localStorage.setItem('gym.web', '1'); } catch { /* egal */ }
-      location.href = `${appUrl}?app${location.hash}`;
+      location.href = shortInvite ? `${SHARE_BASE}/f/${shortInvite}?app` : `${appUrl}?app${location.hash}`;
     }
   });
 

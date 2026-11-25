@@ -19,7 +19,7 @@
 //                      sets: [ { w: 80, r: 8, status: "done" | "skipped" } ] } ] }
 //   ],
 //   body: [ { date: "2026-11-24", kg: 75.2 } ],       // Körpergewicht, 1 Wert pro Tag
-//   profile: { id: "…", name: "Alex" },               // für Freunde-Codes
+//   profile: { id, name, code: "K7Q2MX", key },      // Code = kurzer Freundes-Code, key = geheim
 //   friends: [ { id, name, t: ms, stats: {…} } ],     // zuletzt erhaltener Stand
 //   settings: { bar: 20 }                             // Stangengewicht (Scheibenrechner)
 // }
@@ -64,7 +64,10 @@ export function normalize(d) {
     for (const b of d.body) if (b && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.kg > 20 && b.kg < 400) byDay.set(b.date, { date: b.date, kg: +b.kg });
     out.body = [...byDay.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
   }
-  if (d.profile && typeof d.profile.id === 'string') out.profile = { id: d.profile.id, name: String(d.profile.name || '').slice(0, 24) };
+  if (d.profile && typeof d.profile.id === 'string') {
+    out.profile = { id: d.profile.id, name: String(d.profile.name || '').slice(0, 24) };
+    if (/^[A-Z2-9]{6}$/.test(d.profile.code || '') && typeof d.profile.key === 'string') { out.profile.code = d.profile.code; out.profile.key = d.profile.key; }
+  }
   if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
   if (d.settings && typeof d.settings === 'object') out.settings = { ...out.settings, ...d.settings };
   return out;

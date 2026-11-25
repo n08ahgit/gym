@@ -1,10 +1,11 @@
 // =============================================================
 // friends.js – Wettbewerb mit Freunden, ganz ohne Server
 //
-// Jeder erzeugt einen Link mit seinem aktuellen Stand (Name + Kennzahlen,
-// keine Trainingsdetails). Öffnet ein Freund den Link in seiner App, wird
-// man in seiner Rangliste eingetragen bzw. aktualisiert. Den Link teilt
-// man über WhatsApp, iMessage usw. – wer neu teilt, aktualisiert seinen Stand.
+// Jeder hat einen kurzen Code (z. B. K7Q2MX) und einen Link
+// gymapp-de.pages.dev/f/K7Q2MX. Die App legt Name + Kennzahlen (keine
+// Trainingsdetails) unter diesem Code beim eigenen Cloudflare-Server ab
+// und aktualisiert sie automatisch. Freunde fügen den Code einmal hinzu,
+// danach holt die App deren Stand selbst. Ältere lange Links (#f=…) gehen weiter.
 //
 // Kennzahlen (alle aus den eigenen Daten berechnet):
 //   s   aktuelle Streak (Tage)        b    beste Streak
@@ -15,10 +16,11 @@
 // =============================================================
 
 import { data, save } from './store.js';
-import { addDays, dateStr } from './util.js';
+import { addDays, dateStr, uid } from './util.js';
 import { computeStreak } from './streak.js';
 import { e1rm } from './stats.js';
 import { bodyTrend } from './coach.js';
+import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 
 export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' };
 
@@ -67,6 +69,71 @@ export function myLink() {
   return `${base}#f=${myCode()}`;
 }
 
+// ---------- Kurzer Code über den Server ----------
+
+const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // ohne I, O, 0, 1 (Verwechslung)
+const API = PUSH_SERVER.replace(/\/$/, '');
+
+/** Eigener kurzer Code (wird beim ersten Mal erzeugt). */
+export function shortCode() {
+  if (!data.profile.code) {
+    const r = crypto.getRandomValues(new Uint8Array(6));
+    data.profile.code = Array.from(r, (b) => ALPHA[b % ALPHA.length]).join('');
+    data.profile.key = uid() + uid() + uid();
+    save();
+  }
+  return data.profile.code;
+}
+
+export const shortLink = () => `${SHARE_BASE}/f/${shortCode()}`;
+
+let lastPublish = 0;
+/** Eigenen Stand beim Server ablegen (höchstens alle 2 Minuten, außer force). */
+export async function publishMe(force = false) {
+  if (!API || !data.profile.name || window.GYM_DEMO) return false; // Demo-Daten nie hochladen
+  if (!force && Date.now() - lastPublish < 120000) return true;
+  lastPublish = Date.now();
+  shortCode();
+  try {
+    const res = await fetch(`${API}/friend/publish`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+      body: JSON.stringify({ code: data.profile.code, key: data.profile.key, name: data.profile.name, stats: myStats() }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Code (oder Link) → Freund vom Server holen. */
+export async function fetchFriend(code) {
+  const res = await fetch(`${API}/friend/${code}`);
+  if (res.status === 404) throw new Error(`Code ${code} gibt es nicht – bitte prüfen.`);
+  if (!res.ok) throw new Error('Server nicht erreichbar');
+  const e = await res.json();
+  return { id: 'c:' + code, code, name: String(e.name).slice(0, 24), t: e.t, stats: e.stats };
+}
+
+/** Aus Eingabe den kurzen Code lesen: "k7q2mx", "…/f/K7Q2MX" → "K7Q2MX". */
+export function parseShort(input) {
+  const s = String(input || '').trim();
+  const m = s.match(/\/f\/([A-Za-z2-9]{6})\b/) || s.match(/^([A-Za-z2-9]{6})$/);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/** Stand aller Freunde mit Code neu laden. Rückgabe: true, wenn sich etwas geändert hat. */
+export async function refreshFriends() {
+  let changed = false;
+  await Promise.all(data.friends.filter((f) => f.code).map(async (f) => {
+    try {
+      const n = await fetchFriend(f.code);
+      if (n.t !== f.t || n.name !== f.name) { Object.assign(f, n); changed = true; }
+    } catch { /* offline oder gelöscht: alten Stand behalten */ }
+  }));
+  if (changed) save();
+  return changed;
+}
+
 /** Code oder kompletter Link → Freundes-Objekt. Wirft bei ungültigem Inhalt. */
 export function decodeFriend(input) {
   const m = String(input || '').trim().match(/(?:#f=)?([A-Za-z0-9_-]{20,})\s*$/);
@@ -78,7 +145,7 @@ export function decodeFriend(input) {
 
 /** Freund hinzufügen oder aktualisieren. Rückgabe: 'new' | 'updated' | 'old' | 'self'. */
 export function upsertFriend(f) {
-  if (f.id === data.profile.id) return 'self';
+  if (f.id === data.profile.id || (f.code && f.code === data.profile.code)) return 'self';
   const i = data.friends.findIndex((x) => x.id === f.id);
   if (i >= 0) {
     if (data.friends[i].t > f.t) return 'old';

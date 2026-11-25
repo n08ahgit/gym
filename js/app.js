@@ -506,16 +506,24 @@ if (window.GYM_DEMO) {
 requestPersist();
 autoBackup();
 
-// Freundes-Link geöffnet (…#f=CODE)? → Freund übernehmen und Rangliste zeigen
+// Freundes-Link geöffnet (…/f/K7Q2MX oder alt …#f=…)? → Freund übernehmen, Rangliste zeigen
 let startScreen = hasActive() ? 'workout' : 'home';
-if (location.hash.startsWith('#f=')) {
-  try { if (addFromCode(location.hash)) startScreen = 'friends'; } catch (e) { setTimeout(() => toast(e.message), 300); }
-  history.replaceState(null, '', location.pathname + location.search);
+const invite = location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1] || (location.hash.startsWith('#f=') ? location.hash : null);
+if (invite) {
+  history.replaceState(null, '', location.pathname.replace(/f\/[A-Za-z2-9]{6}\/?$/, '') + location.search.replace(/^\?$/, ''));
+  addFromCode(invite).then((ok) => { if (ok && !hasActive()) go('friends'); }).catch((e) => toast(e.message));
 }
 window.addEventListener('hashchange', () => {
   if (!location.hash.startsWith('#f=')) return;
-  try { if (addFromCode(location.hash)) go('friends'); } catch (e) { toast(e.message); }
+  const h = location.hash;
   history.replaceState(null, '', location.pathname + location.search);
+  addFromCode(h).then((ok) => { if (ok) go('friends'); }).catch((e) => toast(e.message));
+});
+
+// Eigenen Stand für Freunde aktuell halten (wenn ein Name gesetzt ist)
+import('./friends.js').then((f) => {
+  f.publishMe();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') f.publishMe(); });
 });
 
 // Läuft ein Workout, direkt dorthin (z. B. nach Schließen der App)
