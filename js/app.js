@@ -508,9 +508,12 @@ autoBackup();
 
 // Freundes-Link geöffnet (…/f/K7Q2MX oder alt …#f=…)? → Freund übernehmen, Rangliste zeigen
 let startScreen = hasActive() ? 'workout' : 'home';
-const invite = location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1] || (location.hash.startsWith('#f=') ? location.hash : null);
+const qs = new URLSearchParams(location.search);
+const invite = location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1] || (/^[A-Za-z2-9]{6}$/.test(qs.get('f') || '') ? qs.get('f') : null)
+  || (location.hash.startsWith('#f=') ? location.hash : null);
 if (invite) {
-  history.replaceState(null, '', location.pathname.replace(/f\/[A-Za-z2-9]{6}\/?$/, '') + location.search.replace(/^\?$/, ''));
+  qs.delete('f');
+  history.replaceState(null, '', location.pathname.replace(/f\/[A-Za-z2-9]{6}\/?$/, '') + (qs.toString() ? `?${qs}` : ''));
   addFromCode(invite).then((ok) => { if (ok && !hasActive()) go('friends'); }).catch((e) => toast(e.message));
 }
 window.addEventListener('hashchange', () => {

@@ -13,9 +13,10 @@ const isAndroid = /Android/.test(ua);
 const inApp = /CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|Line\/|GSA\/|WhatsApp|Snapchat/.test(ua);
 import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 
-const shortInvite = location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1]?.toUpperCase() || null;
+const fParam = new URLSearchParams(location.search).get('f');
+const shortInvite = (location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1] || (/^[A-Za-z2-9]{6}$/.test(fParam || '') ? fParam : '')).toUpperCase() || null;
 // Bei Einladungs-Links (…/f/CODE) zeigt "Link kopieren" auf die Startseite, nicht auf die Einladung
-const appUrl = shortInvite ? `${SHARE_BASE}/` : location.href.split('#')[0].split('?')[0];
+const appUrl = location.href.split('#')[0].split('?')[0].replace(/f\/[A-Za-z2-9]{6}\/?$/, '');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const svg = (d, w = 22) => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -157,7 +158,7 @@ async function render() {
     }
     if (e.target.closest('[data-web]')) {
       try { localStorage.setItem('gym.web', '1'); } catch { /* egal */ }
-      location.href = shortInvite ? `${SHARE_BASE}/f/${shortInvite}?app` : `${appUrl}?app${location.hash}`;
+      location.href = shortInvite ? `${appUrl}?app&f=${shortInvite}` : `${appUrl}?app${location.hash}`;
     }
   });
 
