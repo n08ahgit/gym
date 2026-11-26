@@ -22,6 +22,8 @@ import { e1rm } from './stats.js';
 import { bodyTrend } from './coach.js';
 import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 import { caffeineStats } from './drinks.js';
+import { dayStatus } from './year.js';
+import { sessionsByDate } from './store.js';
 
 export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' };
 
@@ -29,13 +31,15 @@ export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift:
 export function myStats(today = new Date()) {
   const from28 = dateStr(addDays(today, -27));
   const from90 = dateStr(addDays(today, -89));
-  let w4 = 0, v4 = 0, x4 = 0;
+  let w4 = 0, v4 = 0, x4 = 0, k4 = 0, t4 = 0;
   const e = {};
   for (const s of data.sessions) {
     const in28 = s.date >= from28;
     if (in28) w4++;
     for (const ex of s.exercises) {
       for (const st of ex.sets) {
+        // Disziplin: geplante Sätze im Workout vs. übersprungene (einzelne Sätze oder ganze Übungen)
+        if (in28) { t4++; if (st.status === 'skipped') k4++; }
         if (st.status !== 'done') continue;
         if (in28) { x4++; v4 += setVol(st); }
         if (s.date >= from90 && BIG3[ex.exId] && st.w && st.r) e[ex.exId] = Math.max(e[ex.exId] || 0, Math.round(e1rm(st.w, st.r) * 2) / 2);
@@ -45,7 +49,15 @@ export function myStats(today = new Date()) {
   const st = computeStreak(today);
   const bt = bodyTrend();
   const caf = caffeineStats(7, today);
-  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top };
+  // Gym geskippt: geplante Trainingstage der letzten 28 Tage (ohne heute), an denen nichts gespeichert wurde
+  const todayStr = dateStr(today), byDate = sessionsByDate();
+  let m4 = 0, p4 = 0;
+  for (let i = 1; i <= 28; i++) {
+    const ds = dateStr(addDays(today, -i));
+    const stt = dayStatus(ds, todayStr, byDate);
+    if (stt === 'missed') { m4++; p4++; } else if (stt === 'done') p4++;
+  }
+  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4 };
 }
 
 // ---------- Kodierung (Base64url, Umlaute-sicher) ----------
@@ -245,6 +257,9 @@ export const BOARDS = {
   volume: { label: 'Volumen', unit: 'kg', sub: 'letzte 4 Wochen', val: (st) => st.v4 },
   strength: { label: 'Kraft', unit: '× KG', sub: 'Bank + Kniebeuge + Kreuzheben ÷ Körpergewicht', val: relStrength },
   caffeine: { label: 'Koffein', unit: 'mg', sub: 'Koffein der letzten 7 Tage', val: (st) => (typeof st.c7 === 'number' ? st.c7 : null) },
+  // Weniger ist besser (asc): wer am seltensten skippt bzw. auslässt, steht oben
+  skips: { label: 'Gym-Skips', unit: 'geskippt', sub: 'geplante Trainings verpasst · letzte 4 Wochen', asc: true, val: (st) => (typeof st.m4 === 'number' ? st.m4 : null) },
+  sets: { label: 'Ausgelassen', unit: 'der Sätze', sub: 'übersprungene Sätze/Übungen · letzte 4 Wochen', asc: true, val: (st) => (st.t4 ? Math.round((st.k4 / st.t4) * 100) : typeof st.t4 === 'number' ? 0 : null) },
 };
 
 /** Rangliste inkl. mir. Einträge ohne Wert stehen unten. */
@@ -253,5 +268,8 @@ export function leaderboard(key) {
   const me = { id: data.profile.id, name: data.profile.name || 'Du', me: true, t: Date.now(), stats: myStats() };
   return [me, ...data.friends]
     .map((p) => ({ ...p, value: b.val(p.stats) }))
-    .sort((a, c) => (c.value ?? -1) - (a.value ?? -1));
+    .sort((a, c) => {
+      if (a.value == null || c.value == null) return (a.value == null) - (c.value == null); // ohne Wert nach unten
+      return b.asc ? a.value - c.value : c.value - a.value;
+    });
 }

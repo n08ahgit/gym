@@ -22,8 +22,11 @@ function fmtValue(key, v) {
   if (v == null) return '–';
   if (key === 'volume') return v >= 10000 ? `${fmtNum(Math.round(v / 100) / 10)} t` : `${fmtBig(v)} kg`;
   if (key === 'strength') return `${fmtNum(Math.round(v * 100) / 100)}×`;
+  if (key === 'sets') return `${v} %`;
+  if (key === 'skips') return `${v}×`;
   return String(v);
 }
+const unitOf = (key) => (['strength', 'volume', 'sets', 'skips'].includes(key) ? '' : BOARDS[key].unit);
 
 function gapText(key, rows) {
   const i = rows.findIndex((r) => r.me);
@@ -33,19 +36,32 @@ function gapText(key, rows) {
   if (i === 0) {
     const second = rows[1];
     if (second.value == null) return 'Du führst.';
-    const d = me.value - second.value;
-    return d === 0 ? `Gleichstand mit ${esc(second.name)}.` : `Du führst mit ${fmtValue(key, d)} ${key === 'strength' || key === 'volume' ? '' : BOARDS[key].unit} Vorsprung vor ${esc(second.name)}.`;
+    const d = Math.abs(me.value - second.value);
+    if (d === 0) return `Gleichstand mit ${esc(second.name)}.`;
+    if (BOARDS[key].asc) return key === 'skips' ? `Du skippst am wenigsten – ${d}× weniger als ${esc(second.name)}.` : `Du lässt am wenigsten aus – ${d} Prozentpunkte weniger als ${esc(second.name)}.`;
+    return `Du führst mit ${fmtValue(key, d)} ${unitOf(key)} Vorsprung vor ${esc(second.name)}.`;
   }
   const ahead = rows[i - 1];
-  const d = ahead.value - me.value;
-  return `Platz ${i + 1} · ${fmtValue(key, d)} ${key === 'strength' || key === 'volume' ? '' : BOARDS[key].unit} hinter ${esc(ahead.name)}.`;
+  const d = Math.abs(ahead.value - me.value);
+  if (BOARDS[key].asc) return `Platz ${i + 1} · ${esc(ahead.name)} ${key === 'skips' ? `hat ${d}× weniger geskippt` : `lässt ${d} Prozentpunkte weniger aus`}.`;
+  return `Platz ${i + 1} · ${fmtValue(key, d)} ${unitOf(key)} hinter ${esc(ahead.name)}.`;
+}
+
+const pct = (st) => (typeof st?.t4 === 'number' ? (st.t4 ? Math.round((st.k4 / st.t4) * 100) : 0) : null);
+
+/** Zusatzzeile je Wertung: worauf sich die Zahl bezieht. */
+function detail(key, st) {
+  if (!st) return '';
+  if (key === 'skips' && typeof st.p4 === 'number') return `${st.m4} von ${st.p4} Trainings verpasst`;
+  if (key === 'sets' && typeof st.t4 === 'number') return st.t4 ? `${st.k4} von ${st.t4} Sätzen übersprungen` : 'noch keine Workouts';
+  return '';
 }
 
 export const friendsScreen = {
   render(params) {
     const key = params.board || 'consistency';
     const rows = leaderboard(key);
-    const seg = `<div class="seg-wrap seg-5" role="tablist" aria-label="Wertung">${Object.entries(BOARDS)
+    const seg = `<div class="seg-wrap seg-boards" role="tablist" aria-label="Wertung">${Object.entries(BOARDS)
       .map(([k, b]) => `<button class="seg-item${k === key ? ' on' : ''}" role="tab" aria-selected="${k === key}" data-action="board" data-k="${k}">${b.label}</button>`)
       .join('')}</div>`;
 
@@ -53,7 +69,7 @@ export const friendsScreen = {
       <button class="list-row rank-row${r.me ? ' me' : ''}" data-action="${r.me ? 'noop' : 'friend'}" data-id="${esc(r.id)}">
         <span class="rank">${r.value == null ? '–' : i + 1}</span>
         <span class="lr-main"><span class="lr-title">${esc(r.name)}${r.me ? ' <span class="you">Du</span>' : ''}</span>
-          <span class="lr-sub">${r.me ? 'aktueller Stand' : `Stand ${ago(r.t)}`}</span></span>
+          <span class="lr-sub">${detail(key, r.stats) || (r.me ? 'aktueller Stand' : `Stand ${ago(r.t)}`)}</span></span>
         <span class="lr-value">${fmtValue(key, r.value)}${key !== 'volume' && key !== 'strength' && r.value != null ? `<small> ${BOARDS[key].unit}</small>` : ''}</span>
       </button>`).join('');
 
@@ -157,8 +173,8 @@ function openFriend(id) {
   const f = data.friends.find((x) => x.id === id);
   if (!f) return;
   const me = myStats();
-  const row = (label, a, b, fmt = (v) => (v == null ? '–' : String(v))) => {
-    const lead = a != null && b != null && a !== b ? (a > b ? 'me' : 'them') : '';
+  const row = (label, a, b, fmt = (v) => (v == null ? '–' : String(v)), lowerBetter = false) => {
+    const lead = a != null && b != null && a !== b ? ((a > b) !== lowerBetter ? 'me' : 'them') : '';
     return `<li class="cmp"><span class="cmp-l">${label}</span><b class="${lead === 'me' ? 'lead' : ''}">${fmt(a)}</b><b class="${lead === 'them' ? 'lead' : ''}">${fmt(b)}</b></li>`;
   };
   const kg = (v) => (v ? `${fmtNum(v)} kg` : '–');
@@ -171,6 +187,8 @@ function openFriend(id) {
       ${row('Streak', me.s, f.stats.s)}
       ${row('Beste Streak', me.b, f.stats.b)}
       ${Object.entries(BIG3).map(([k, n]) => row(`${n} (1RM)`, me.e[k], f.stats.e?.[k], kg)).join('')}
+      ${row('Gym geskippt (4 Wo.)', me.m4, f.stats.m4, (v) => (v == null ? '–' : `${v}×`), true)}
+      ${row('Sätze ausgelassen', pct(me), pct(f.stats), (v) => (v == null ? '–' : `${v} %`), true)}
       ${row('Körpergewicht', me.bw, f.stats.bw, kg)}
       ${row('Koffein (7 Tage)', me.c7, f.stats.c7, (v) => (v == null ? '–' : `${v} mg`))}
     </ul>

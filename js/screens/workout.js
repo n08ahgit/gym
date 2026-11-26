@@ -225,7 +225,8 @@ function progressBar() {
 
 function nextUpHtml() {
   const it = curItem();
-  return `<p class="next-up">Als Nächstes: <b>${esc(it.name)}</b> · Satz ${active.cur.set + 1} von ${it.sets}</p>`;
+  return `<p class="next-up">Als Nächstes: <b>${esc(it.name)}</b> · Satz ${active.cur.set + 1} von ${it.sets}</p>
+    ${movable().length > 1 ? `<button class="chip order-chip" data-action="order">${ICON.swap} Reihenfolge ändern</button>` : ''}`;
 }
 
 function viewExercise() {
@@ -252,7 +253,7 @@ function viewExercise() {
         <h2 class="ex-name">${esc(it.name)}</h2>
         <button class="glass-circle sm" data-action="info" aria-label="Ausführung und Tipps">${ICON.info}</button>
       </div>
-      <p class="ex-muscles">${esc(muscleNames(it.primary))}</p>
+      <p class="ex-muscles">${esc(muscleNames(it.primary))}${movable().length > 1 ? ` · <button class="text-btn order-link" data-action="order">${ICON.swap} Reihenfolge</button>` : ''}</p>
       ${bodyImage(it.primary, it.secondary)}
       <div class="set-head"><span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
       <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last).replace(' × ', ' kg × ')}</b>` : '<b>–</b> (noch keine Werte)'}</p>
@@ -364,6 +365,54 @@ function viewSummary() {
     </footer>`;
 }
 
+// ---------- Reihenfolge für diese Sitzung ändern ----------
+// Gerät besetzt? Übungen, die noch nicht begonnen sind, lassen sich frei
+// verschieben. Der Plan selbst bleibt unverändert.
+
+/** Indizes der Übungen, die noch verschoben werden dürfen. */
+function movable() {
+  if (!active || isFinished()) return [];
+  const from = active.cur.set === 0 ? active.cur.ex : active.cur.ex + 1;
+  return active.items.map((_, i) => i).filter((i) => i >= from);
+}
+
+function moveItem(from, to) {
+  const [x] = active.items.splice(from, 1);
+  active.items.splice(to, 0, x);
+  persist();
+}
+
+function openOrderSheet() {
+  const draw = () => {
+    const mv = movable();
+    const first = mv[0];
+    return active.items.map((it, i) => {
+      const done = i < active.cur.ex;
+      const running = i === active.cur.ex && active.cur.set > 0;
+      const canMove = mv.includes(i);
+      const state = done ? 'erledigt' : running ? `läuft · Satz ${active.cur.set + 1}/${it.sets}` : i === active.cur.ex ? 'jetzt dran' : '';
+      return `<li class="order-row${done ? ' done' : ''}${running || i === active.cur.ex ? ' cur' : ''}">
+        <span class="order-n">${i + 1}</span>
+        <span class="lr-main"><span class="lr-title">${esc(it.name)}</span>${state ? `<span class="lr-sub">${state}</span>` : `<span class="lr-sub">${it.sets} Sätze</span>`}</span>
+        ${canMove ? `<span class="order-btns">
+          ${i !== first ? `<button class="chip" data-action="first" data-i="${i}">${active.cur.set === 0 ? 'Jetzt' : 'Als Nächstes'}</button>` : ''}
+          <button class="icon-btn sm" data-action="up" data-i="${i}" ${i === first ? 'disabled' : ''} aria-label="Nach oben">${ICON.up}</button>
+          <button class="icon-btn sm" data-action="down" data-i="${i}" ${i === active.items.length - 1 ? 'disabled' : ''} aria-label="Nach unten">${ICON.down}</button>
+        </span>` : ''}</li>`;
+    }).join('');
+  };
+  const redraw = () => { const ul = document.getElementById('orderList'); if (ul) ul.innerHTML = draw(); };
+  openSheet(`<h2 class="sheet-title">Reihenfolge</h2>
+    <p class="muted small sheet-sub">Gilt nur für dieses Workout – dein Plan bleibt gleich.</p>
+    <ol class="order-list" id="orderList">${draw()}</ol>
+    <div class="sheet-actions"><button class="btn primary big" data-action="done">Fertig</button></div>`, {
+    up: (el) => { const i = +el.dataset.i; if (movable().includes(i - 1)) { moveItem(i, i - 1); redraw(); } },
+    down: (el) => { const i = +el.dataset.i; if (i < active.items.length - 1) { moveItem(i, i + 1); redraw(); } },
+    first: (el) => { moveItem(+el.dataset.i, movable()[0]); redraw(); },
+    done: () => { closeSheet(); transition(render); },
+  });
+}
+
 // ---------- Screen ----------
 
 export const workoutScreen = {
@@ -417,6 +466,7 @@ export const workoutScreen = {
     },
 
     info: () => { const it = curItem(); openExerciseInfo(it.exId, it.name); },
+    order: () => openOrderSheet(),
 
     useSug: () => {
       const sug = suggest(curItem().exId);
