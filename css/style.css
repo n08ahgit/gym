@@ -335,11 +335,12 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 @keyframes pulse { 50% { opacity: 0.3; } }
 
 /* ---------- Sheets, Dialoge, Toast ---------- */
-#sheet, #modal { position: fixed; inset: 0; z-index: 20; }
+/* Genau der sichtbare Bereich (bei offener Tastatur kleiner) – siehe Tastatur-Teil in app.js */
+#sheet, #modal { position: fixed; left: 0; right: 0; top: var(--vv-top, 0px); height: var(--vv-h, 100%); z-index: 20; }
 #modal { z-index: 30; }
 .backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); animation: fade 0.2s; }
 .sheet-panel {
-  position: absolute; left: 0; right: 0; bottom: 0; max-height: 88dvh; overflow-y: auto; overscroll-behavior: contain;
+  position: absolute; left: 0; right: 0; bottom: 0; max-height: min(88dvh, calc(100% - 12px)); overflow-y: auto; overscroll-behavior: contain;
   padding: 8px var(--margin) calc(16px + var(--safe-bottom)); background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 140px), var(--surface); border: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 -10px 40px rgba(0, 0, 0, 0.4);
   border-radius: 28px 28px 0 0; animation: up 420ms var(--ease-drawer); max-width: 600px; margin: 0 auto;
@@ -1067,3 +1068,13 @@ html[data-nav="fade"]::view-transition-new(tabbar) { animation: none; }
 .stats .stat-btn span { font-size: 0.765rem; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; }
 .stats .stat-btn span svg { width: 11px; height: 11px; color: var(--accent); }
 .gfield.bad, .gfield.bad:focus-within { border-color: var(--red); }
+
+/* Tastatur offen: untere Leisten weg, damit sie nie Felder verdecken */
+html.kb-open .tabbar, html.kb-open .active-bar { visibility: hidden; }
+/* Fußleiste: nur der Hauptknopf bleibt, direkt über der Tastatur */
+html.kb-open .bottom { bottom: var(--kb-bottom, 0px); padding-bottom: 8px; }
+html.kb-open .bottom > :not(:first-child) { display: none; }
+html.kb-open input, html.kb-open textarea { scroll-margin-bottom: 96px; scroll-margin-top: 80px; }
+/* Platz zum Hochscrollen, so hoch wie die Tastatur (sonst kann ein Feld unten nicht über die Tastatur) */
+html.kb-open .content { padding-bottom: calc(var(--kb-bottom, 0px) + 200px) !important; }
+html.kb-open .sheet-panel { padding-bottom: 16px; }

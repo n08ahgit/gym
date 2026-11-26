@@ -253,6 +253,8 @@ function enableSwipeToClose(panel) {
   let startY = null, startT = 0, dy = 0;
   panel.addEventListener('touchstart', (e) => {
     if (panel.scrollTop > 0 || e.touches.length > 1) return;
+    // Tastatur offen: Wischen scrollt nur – schließen höchstens am Griff/Titel
+    if (document.documentElement.classList.contains('kb-open') && !e.target.closest('.grabber, .sheet-bar')) return;
     // Finger in einer eigenen Scroll-Liste (z. B. Suchergebnisse)? Dann scrollt die Liste – nie schließen.
     for (let el = e.target; el && el !== panel; el = el.parentElement) {
       if (el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) return;
@@ -474,6 +476,56 @@ window.addEventListener('scroll', cancelPress, { passive: true, capture: true })
 // Audio bei jeder Berührung freischalten (iOS)
 document.addEventListener('pointerdown', unlockAudio, { passive: true });
 document.addEventListener('touchend', unlockAudio, { passive: true });
+
+// ---------- Tastatur ----------
+// iPhone: Die Tastatur verkleinert nur den *sichtbaren* Bereich (visualViewport),
+// fixierte Elemente richten sich aber nach dem ganzen Bildschirm. Darum:
+//  - Fenster (#sheet/#modal) bekommen genau den sichtbaren Bereich → nichts hinter der Tastatur,
+//    ganz nach oben scrollbar.
+//  - Untere Leisten (Tabs, Fußknöpfe) verschwinden, solange getippt wird → verdecken nichts.
+//  - Das angetippte Feld wird in den sichtbaren Teil gescrollt.
+const isTyping = (el) => !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable
+  || (el.tagName === 'INPUT' && !['button', 'checkbox', 'radio', 'range', 'file', 'submit', 'reset', 'color'].includes(el.type)));
+function syncViewport() {
+  const vv = window.visualViewport;
+  const st = document.documentElement.style;
+  if (vv) {
+    st.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`);
+    st.setProperty('--vv-h', `${Math.round(vv.height)}px`);
+    // so hoch ist die Tastatur über dem unteren Rand (iPhone); Android verkleinert die Seite selbst → 0
+    st.setProperty('--kb-bottom', `${Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height))}px`);
+  }
+}
+/** Feld so scrollen, dass es zwischen oberem Rand und Tastatur bzw. Fußknopf frei liegt. */
+function ensureVisible(el) {
+  const vv = window.visualViewport;
+  const top = (vv?.offsetTop || 0) + 70;
+  let bottom = (vv ? vv.offsetTop + vv.height : innerHeight) - 12;
+  const foot = document.querySelector('.bottom');
+  if (foot && !el.closest('#sheet') && getComputedStyle(foot).visibility !== 'hidden') bottom = Math.min(bottom, foot.getBoundingClientRect().top - 12);
+  const r = el.getBoundingClientRect();
+  const panel = el.closest('.sheet-panel');
+  const delta = r.bottom > bottom ? r.bottom - bottom : r.top < top ? r.top - top : 0;
+  if (!delta) return;
+  if (panel) panel.scrollBy({ top: delta, behavior: 'smooth' });
+  else window.scrollBy({ top: delta, behavior: 'smooth' });
+}
+
+let kbTimer;
+document.addEventListener('focusin', (e) => {
+  if (!isTyping(e.target)) return;
+  clearTimeout(kbTimer);
+  document.documentElement.classList.add('kb-open');
+  // nach dem Hochfahren der Tastatur das Feld sichtbar machen (im Fenster oder auf der Seite)
+  setTimeout(() => { syncViewport(); if (document.activeElement === e.target) ensureVisible(e.target); }, 320);
+});
+document.addEventListener('focusout', () => {
+  // Wechsel zwischen zwei Feldern: kurz warten, ob gleich das nächste Feld den Fokus bekommt
+  kbTimer = setTimeout(() => { if (!isTyping(document.activeElement)) document.documentElement.classList.remove('kb-open'); syncViewport(); }, 120);
+});
+window.visualViewport?.addEventListener('resize', syncViewport);
+window.visualViewport?.addEventListener('scroll', syncViewport);
+syncViewport();
 
 // ---------- Timer-Takt ----------
 // Zeiten werden immer aus Zeitstempeln berechnet; der Takt aktualisiert
