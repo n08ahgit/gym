@@ -15,6 +15,21 @@ import { openSetEditor } from './setedit.js';
 import { getExercise } from '../exercises.js';
 
 const find = (id) => data.sessions.find((s) => s.id === id);
+const hhmm = (ms) => new Date(ms).toTimeString().slice(0, 5);
+
+/** "75", "1:15" oder "1h15" → Minuten */
+export function parseMinutes(v) {
+  const t = String(v || '').trim().toLowerCase().replace(',', '.');
+  const m = t.match(/^(\d{1,2})\s*(?::|h)\s*(\d{1,2})?\s*(?:min)?$/);
+  if (m) return Number(m[1]) * 60 + Number(m[2] || 0);
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? Math.round(n) : NaN;
+}
+
+function showEnd(s) {
+  const el = document.getElementById('seEnd');
+  if (el) el.textContent = `${hhmm(s.end)} Uhr · ${el.textContent.split(' · ').slice(1).join(' · ')}`;
+}
 
 function goBack() {
   const b = ui.params.back;
@@ -47,7 +62,11 @@ export const sessionScreen = {
         <label class="gfield"><span>Name</span><input id="seName" value="${esc(s.workoutName)}" maxlength="40" autocomplete="off" data-input="name"></label>
         <div class="two">
           <label class="gfield"><span>Datum</span><input id="seDate" type="date" value="${s.date}" max="${dateStr()}" data-input="date"></label>
-          <div class="gfield static"><span>Dauer · Volumen</span><b>${fmtDurationLong(s.end - s.start)} · ${fmtVol(vol)}</b></div>
+          <label class="gfield"><span>Beginn</span><input id="seStart" type="time" value="${hhmm(s.start)}" data-input="start"></label>
+        </div>
+        <div class="two">
+          <label class="gfield"><span>Dauer (Minuten)</span><input id="seDur" inputmode="numeric" value="${Math.max(1, Math.round((s.end - s.start) / 60000))}" placeholder="z. B. 75" autocomplete="off" data-input="dur"></label>
+          <div class="gfield static"><span>Ende · Volumen</span><b id="seEnd">${hhmm(s.end)} Uhr · ${fmtVol(vol)}</b></div>
         </div>
         <p class="muted small se-hint">Satz antippen zum Ändern · „+ Satz“ nachtragen · ＋ fügt einen Satz hinzu. Alles wird sofort gespeichert.</p>
         ${cards}
@@ -95,6 +114,28 @@ export const sessionScreen = {
   },
 
   inputs: {
+    // Dauer: Beginn bleibt, Ende verschiebt sich
+    dur: (el) => {
+      const min = parseMinutes(el.value);
+      const bad = !(min >= 1 && min <= 600);
+      el.closest('.gfield').classList.toggle('bad', bad && el.value.trim() !== '');
+      if (bad) return;
+      const s = updateSession(ui.params.id, (x) => { x.end = x.start + min * 60000; });
+      showEnd(s);
+    },
+    // Beginn: Dauer bleibt gleich, Datum bleibt
+    start: (el) => {
+      if (!/^\d{2}:\d{2}$/.test(el.value)) return;
+      const s = updateSession(ui.params.id, (x) => {
+        const dur = x.end - x.start;
+        const d = new Date(x.start);
+        const [h, m] = el.value.split(':').map(Number);
+        d.setHours(h, m, 0, 0);
+        x.start = d.getTime();
+        x.end = x.start + dur;
+      });
+      showEnd(s);
+    },
     name: (el) => { const v = el.value.trim(); if (v) updateSession(ui.params.id, (s) => { s.workoutName = v.slice(0, 40); }); },
     date: (el) => {
       const ds = el.value;

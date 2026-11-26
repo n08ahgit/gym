@@ -30,6 +30,7 @@ import { autoBackup } from '../backup.js';
 import { openExerciseInfo, openPlates } from './exinfo.js';
 import { scheduleRestPush, cancelRestPush } from '../push.js';
 import { openSetEditor } from './setedit.js';
+import { parseMinutes } from './sessionedit.js';
 
 let active = loadActive();
 
@@ -424,7 +425,7 @@ function viewSummary() {
       <h2 class="sum-title">${esc(active.workoutName)}</h2>
       <p class="muted">${fmtDateLong(dateStr(new Date(active.startedAt)))}</p>
       <div class="stats">
-        <div><b>${fmtDurationLong(st.duration)}</b><span>Dauer</span></div>
+        <button class="stat-btn" data-action="editDur" aria-label="Dauer ändern"><b>${fmtDurationLong(st.duration)}</b><span>Dauer ${ICON.edit}</span></button>
         <div><b>${st.sets}</b><span>Sätze</span></div>
         <div><b>${fmtVol(st.volume).replace(/ (kg|lb|t)$/, '')}</b><span>${fmtVol(st.volume).split(' ').pop()} Volumen</span></div>
       </div>
@@ -629,6 +630,26 @@ export const workoutScreen = {
           abort: () => { closeSheet(); workoutScreen.actions.abort(); },
         }
       );
+    },
+
+    // Dauer in der Zusammenfassung korrigieren (z. B. vergessen zu beenden)
+    editDur: () => {
+      const cur = Math.max(1, Math.round(((active.endedAt || Date.now()) - active.startedAt) / 60000));
+      openSheet(`<h2 class="sheet-title">Dauer ändern</h2>
+        <p class="muted small sheet-sub">Begonnen um ${new Date(active.startedAt).toTimeString().slice(0, 5)} Uhr. Zum Beispiel 75 oder 1:15.</p>
+        <label class="gfield"><span>Dauer (Minuten)</span><input id="durIn" inputmode="numeric" value="${cur}" autocomplete="off" data-enter="saveDur"></label>
+        <div class="sheet-actions"><button class="btn primary big" data-action="saveDur">Speichern</button></div>`, {
+        saveDur: () => {
+          const min = parseMinutes(document.getElementById('durIn').value);
+          if (!(min >= 1 && min <= 600)) return toast('Dauer in Minuten eingeben (1–600)');
+          active.endedAt = active.startedAt + min * 60000;
+          persist();
+          closeSheet();
+          render();
+          toast('Dauer geändert');
+        },
+      });
+      setTimeout(() => document.getElementById('durIn')?.select(), 350);
     },
 
     continue: () => {

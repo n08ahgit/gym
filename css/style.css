@@ -1060,3 +1060,10 @@ body { overflow-wrap: break-word; }
 /* Tab-Leiste beim Wechsel zwischen Tabs: stehen lassen statt überblenden */
 html[data-nav="fade"]::view-transition-old(tabbar) { display: none; }
 html[data-nav="fade"]::view-transition-new(tabbar) { animation: none; }
+
+/* Dauer in der Zusammenfassung antippbar */
+.stats .stat-btn { padding: 14px 6px; text-align: center; display: flex; flex-direction: column; gap: 2px; align-items: center; background: var(--glass-card); border-radius: var(--radius-lg); box-shadow: var(--card-light); color: inherit; }
+.stats .stat-btn b { font-family: var(--font-num); font-size: 1.176rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats .stat-btn span { font-size: 0.765rem; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; }
+.stats .stat-btn span svg { width: 11px; height: 11px; color: var(--accent); }
+.gfield.bad, .gfield.bad:focus-within { border-color: var(--red); }
