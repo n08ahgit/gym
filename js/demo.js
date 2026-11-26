@@ -69,9 +69,9 @@ export function buildDemoData(today = new Date()) {
   }
   const t = (days) => today.getTime() - days * 864e5;
   const friends = [
-    { id: 'demo-lena', name: 'Lena', t: t(1), stats: { s: 41, b: 58, w4: 15, v4: 61200, x4: 248, e: { bench_press: 62.5, squat: 105, deadlift: 125 }, bw: 63.4, m4: 1, p4: 16, k4: 4, t4: 230, c7: 480, dr: [['Red Bull', 4], ['Kaffee (Tasse)', 2]] } },
-    { id: 'demo-jonas', name: 'Jonas', t: t(3), stats: { s: 12, b: 70, w4: 11, v4: 98400, x4: 196, e: { bench_press: 105, squat: 140, deadlift: 175 }, bw: 84.1, m4: 5, p4: 16, k4: 31, t4: 190, c7: 1120, dr: [['Monster Energy', 6], ['Effect', 1]] } },
-    { id: 'demo-mert', name: 'Mert', t: t(6), stats: { s: 128, b: 128, w4: 17, v4: 87300, x4: 289, e: { bench_press: 92.5, squat: 120 }, bw: 78.0, m4: 0, p4: 17, k4: 12, t4: 270, c7: 160, dr: [['Nocco BCAA', 1]] } },
+    { id: 'demo-lena', name: 'Lena', t: t(1), stats: { s: 41, b: 58, w4: 15, v4: 61200, x4: 248, e: { bench_press: 62.5, squat: 105, deadlift: 125 }, bw: 63.4, m4: 1, p4: 16, k4: 4, t4: 230, fk: 2140, fp: 118, fd: 6, c7: 480, dr: [['Red Bull', 4], ['Kaffee (Tasse)', 2]] } },
+    { id: 'demo-jonas', name: 'Jonas', t: t(3), stats: { s: 12, b: 70, w4: 11, v4: 98400, x4: 196, e: { bench_press: 105, squat: 140, deadlift: 175 }, bw: 84.1, m4: 5, p4: 16, k4: 31, t4: 190, fk: 3480, fp: 162, fd: 7, c7: 1120, dr: [['Monster Energy', 6], ['Effect', 1]] } },
+    { id: 'demo-mert', name: 'Mert', t: t(6), stats: { s: 128, b: 128, w4: 17, v4: 87300, x4: 289, e: { bench_press: 92.5, squat: 120 }, bw: 78.0, m4: 0, p4: 17, k4: 12, t4: 270, fk: 2890, fp: 141, fd: 5, c7: 160, dr: [['Nocco BCAA', 1]] } },
   ];
 
   // Energy-Drinks der letzten Tage

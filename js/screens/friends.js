@@ -24,6 +24,7 @@ function fmtValue(key, v) {
   if (key === 'strength') return `${fmtNum(Math.round(v * 100) / 100)}×`;
   if (key === 'sets') return `${v} %`;
   if (key === 'skips') return `${v}×`;
+  if (key === 'food') return fmtBig(v);
   return String(v);
 }
 const unitOf = (key) => (['strength', 'volume', 'sets', 'skips'].includes(key) ? '' : BOARDS[key].unit);
@@ -54,6 +55,7 @@ function detail(key, st) {
   if (!st) return '';
   if (key === 'skips' && typeof st.p4 === 'number') return `${st.m4} von ${st.p4} Trainings verpasst`;
   if (key === 'sets' && typeof st.t4 === 'number') return st.t4 ? `${st.k4} von ${st.t4} Sätzen übersprungen` : 'noch keine Workouts';
+  if (key === 'food') return typeof st.fk === 'number' ? `Ø ${st.fp} g Protein · ${st.fd} ${st.fd === 1 ? 'Tag' : 'Tage'} eingetragen` : 'trägt kein Essen ein';
   return '';
 }
 
@@ -189,6 +191,8 @@ function openFriend(id) {
       ${Object.entries(BIG3).map(([k, n]) => row(`${n} (1RM)`, me.e[k], f.stats.e?.[k], kg)).join('')}
       ${row('Gym geskippt (4 Wo.)', me.m4, f.stats.m4, (v) => (v == null ? '–' : `${v}×`), true)}
       ${row('Sätze ausgelassen', pct(me), pct(f.stats), (v) => (v == null ? '–' : `${v} %`), true)}
+      ${row('Ø Kalorien/Tag (7 T.)', me.fk, f.stats.fk, (v) => (v == null ? '–' : fmtBig(v)))}
+      ${row('Ø Protein/Tag (7 T.)', me.fp, f.stats.fp, (v) => (v == null ? '–' : `${v} g`))}
       ${row('Körpergewicht', me.bw, f.stats.bw, kg)}
       ${row('Koffein (7 Tage)', me.c7, f.stats.c7, (v) => (v == null ? '–' : `${v} mg`))}
     </ul>

@@ -24,6 +24,7 @@ import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 import { caffeineStats } from './drinks.js';
 import { dayStatus } from './year.js';
 import { sessionsByDate } from './store.js';
+import { lastDays } from './nutrition.js';
 
 export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' };
 
@@ -57,7 +58,10 @@ export function myStats(today = new Date()) {
     const stt = dayStatus(ds, todayStr, byDate);
     if (stt === 'missed') { m4++; p4++; } else if (stt === 'done') p4++;
   }
-  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4 };
+  // Essen: Ø kcal und Protein pro Tag der letzten 7 Tage – nur Tage, an denen etwas eingetragen wurde
+  const food = lastDays(7, today);
+  const fk = food.avg ? food.avg.kcal : null, fp = food.avg ? food.avg.p : null;
+  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4, fk, fp, fd: food.count };
 }
 
 // ---------- Kodierung (Base64url, Umlaute-sicher) ----------
@@ -257,6 +261,7 @@ export const BOARDS = {
   volume: { label: 'Volumen', unit: 'kg', sub: 'letzte 4 Wochen', val: (st) => st.v4 },
   strength: { label: 'Kraft', unit: '× KG', sub: 'Bank + Kniebeuge + Kreuzheben ÷ Körpergewicht', val: relStrength },
   caffeine: { label: 'Koffein', unit: 'mg', sub: 'Koffein der letzten 7 Tage', val: (st) => (typeof st.c7 === 'number' ? st.c7 : null) },
+  food: { label: 'Essen', unit: 'kcal/Tag', sub: 'Ø Kalorien pro Tag · letzte 7 Tage (eingetragene Tage)', val: (st) => (typeof st.fk === 'number' ? st.fk : null) },
   // Weniger ist besser (asc): wer am seltensten skippt bzw. auslässt, steht oben
   skips: { label: 'Gym-Skips', unit: 'geskippt', sub: 'geplante Trainings verpasst · letzte 4 Wochen', asc: true, val: (st) => (typeof st.m4 === 'number' ? st.m4 : null) },
   sets: { label: 'Ausgelassen', unit: 'der Sätze', sub: 'übersprungene Sätze/Übungen · letzte 4 Wochen', asc: true, val: (st) => (st.t4 ? Math.round((st.k4 / st.t4) * 100) : typeof st.t4 === 'number' ? 0 : null) },
