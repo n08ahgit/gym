@@ -5,6 +5,7 @@
 
 import { data, planVersionFor, plannedOf } from './store.js';
 import { addDays, dateStr, parseDate, weekdayIdx, setVol } from './util.js';
+import { dumbbells } from './coach.js';
 import { getExercise } from './exercises.js';
 
 /** Geschätztes 1-Wiederholungs-Maximum (Epley). Nur bis 12 Wdh sinnvoll. */
@@ -49,7 +50,7 @@ function summarize(list) {
     for (const ex of s.exercises) {
       for (const st of doneSets(ex)) {
         sets++;
-        volume += setVol(st);
+        volume += setVol(st, dumbbells(ex.exId));
       }
     }
   }
@@ -124,7 +125,7 @@ export function exerciseHistory(exId) {
     if (!sets.length) continue;
     const valid = sets.filter((x) => x.w && x.r);
     const best = valid.length ? valid.reduce((a, b) => (e1rm(b.w, b.r) > e1rm(a.w, a.r) ? b : a)) : null;
-    rows.push({ id: s.id, date: s.date, sets, best, value: best ? e1rm(best.w, best.r) : 0, volume: sets.reduce((n, x) => n + setVol(x), 0) });
+    rows.push({ id: s.id, date: s.date, sets, best, value: best ? e1rm(best.w, best.r) : 0, volume: sets.reduce((n, x) => n + setVol(x, dumbbells(exId)), 0) });
   }
   return rows;
 }
@@ -211,7 +212,7 @@ export function funFacts() {
         setsPer.set(ex.exId, (setsPer.get(ex.exId) || 0) + 1);
         reps += st.r || 0;
         if (st.w && st.r) {
-          volume += setVol(st);
+          volume += setVol(st, dumbbells(ex.exId));
           const v = e1rm(st.w, st.r);
           if (!strongest || v > strongest.value) strongest = { exId: ex.exId, name: getExercise(ex.exId)?.name || ex.name, value: v, w: st.w, r: st.r };
         }

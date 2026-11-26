@@ -2,7 +2,7 @@
 // util.js – kleine Hilfsfunktionen (Datum, Formatierung, Escaping)
 // =============================================================
 
-export const APP_VERSION = '3.23.2';
+export const APP_VERSION = '3.23.3';
 
 export const WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 export const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -113,9 +113,10 @@ export function esc(s) {
 }
 
 /** Volumen eines Satzes: Gewicht × Wdh; einseitig beide Seiten zusammen. */
-export function setVol(s) {
+/** Volumen eines Satzes. n = Anzahl Hanteln (2 bei beidseitigen Kurzhantel-Übungen, siehe coach.dumbbells). */
+export function setVol(s, n = 1) {
   if (!s || !s.w) return 0;
-  return s.rl != null ? s.w * ((s.rl || 0) + (s.rr || 0)) : s.w * (s.r || 0);
+  return n * (s.rl != null ? s.w * ((s.rl || 0) + (s.rr || 0)) : s.w * (s.r || 0));
 }
 
 // ---------- Gewichtseinheit (kg oder lb) ----------

@@ -19,7 +19,7 @@ import { data, save } from './store.js';
 import { addDays, dateStr, uid, setVol } from './util.js';
 import { computeStreak } from './streak.js';
 import { e1rm } from './stats.js';
-import { bodyTrend } from './coach.js';
+import { bodyTrend, dumbbells } from './coach.js';
 import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 import { caffeineStats } from './drinks.js';
 import { dayStatus } from './year.js';
@@ -42,7 +42,7 @@ export function myStats(today = new Date()) {
         // Disziplin: geplante Sätze im Workout vs. übersprungene (einzelne Sätze oder ganze Übungen)
         if (in28) { t4++; if (st.status === 'skipped') k4++; }
         if (st.status !== 'done') continue;
-        if (in28) { x4++; v4 += setVol(st); }
+        if (in28) { x4++; v4 += setVol(st, dumbbells(ex.exId)); }
         if (s.date >= from90 && BIG3[ex.exId] && st.w && st.r) e[ex.exId] = Math.max(e[ex.exId] || 0, Math.round(e1rm(st.w, st.r) * 2) / 2);
       }
     }

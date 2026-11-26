@@ -9,6 +9,7 @@ import { go, render, ui, openSheet } from '../app.js';
 import { data, sessionsByDate, planVersionFor, currentVersion, plannedOf, exUnit } from '../store.js';
 import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, fmtNum, fmtBig, esc, setVol, fmtSet, fmtVol } from '../util.js';
 import { dayStatus } from '../year.js';
+import { dumbbells } from '../coach.js';
 import { ICON } from './icons.js';
 
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -101,8 +102,8 @@ function openDay(ds) {
   let body = '';
   if (st === 'done') {
     body = byDate.get(ds).map((s) => {
-      const done = s.exercises.map((e) => ({ name: e.name, sets: e.sets.filter((x) => x.status === 'done') })).filter((e) => e.sets.length);
-      const vol = done.reduce((a, e) => a + e.sets.reduce((b, x) => b + setVol(x), 0), 0);
+      const done = s.exercises.map((e) => ({ exId: e.exId, name: e.name, sets: e.sets.filter((x) => x.status === 'done') })).filter((e) => e.sets.length);
+      const vol = done.reduce((a, e) => a + e.sets.reduce((b, x) => b + setVol(x, dumbbells(e.exId)), 0), 0);
       const n = done.reduce((a, e) => a + e.sets.length, 0);
       return `<p class="muted small sheet-sub">${esc(s.workoutName)} · ${fmtDurationLong(s.end - s.start)} · ${n} Sätze · ${fmtVol(vol)}</p>
         <ul class="sheet-list">${done.map((e) => `<li><span>${esc(e.name)}</span><span class="muted">${e.sets.map((x) => fmtSet(x, '×', exUnit(e.exId))).join(' · ')}</span></li>`).join('')}</ul>

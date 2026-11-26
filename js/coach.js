@@ -61,6 +61,19 @@ export function equipment(exId) {
 /** Kurzhantel-Übung: Gewicht wird pro Hantel eingetragen (eine Hantel, nicht beide zusammen). */
 export const perDumbbell = (exId) => equipment(exId) === 'dumbbell';
 
+/**
+ * Wie viele Hanteln werden bewegt? (fürs Volumen; eingetragen wird immer das Gewicht EINER Hantel)
+ * Beidseitig mit zwei Kurzhanteln (Bankdrücken, Curls, Seitheben …) = 2,
+ * eine Hantel (Goblet Squat, Überzüge, einarmiges Rudern …) = 1.
+ */
+const ONE_DB = new Set(['pullover', 'goblet_squat']);
+const TWO_DB_UNI = new Set(['bulgarian_split', 'lunges', 'step_up']); // je Hand eine Hantel, Beine abwechselnd
+export function dumbbells(exId) {
+  if (!perDumbbell(exId)) return 1;
+  if (getExercise(exId)?.uni) return TWO_DB_UNI.has(exId) ? 2 : 1;
+  return ONE_DB.has(exId) ? 1 : 2;
+}
+
 /** Ziel-Wiederholungsbereich [min, max] für Muskelaufbau. */
 export function repRange(exId) {
   if (POWER.has(exId)) return [3, 6];

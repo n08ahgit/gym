@@ -24,7 +24,7 @@ import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, p
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';
-import { suggest, hasPlates, checkRecord, perDumbbell } from '../coach.js';
+import { suggest, hasPlates, checkRecord, perDumbbell, dumbbells } from '../coach.js';
 import { showRecord } from '../record.js';
 import { autoBackup } from '../backup.js';
 import { openExerciseInfo, openPlates } from './exinfo.js';
@@ -220,7 +220,7 @@ function stats(a) {
     for (const r of it.results) {
       if (r?.status !== 'done') continue;
       sets++;
-      volume += setVol(r);
+      volume += setVol(r, dumbbells(it.exId));
     }
   }
   return { sets, volume, duration: (a.endedAt || Date.now()) - a.startedAt };

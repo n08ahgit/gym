@@ -13,7 +13,7 @@ import { esc, fmtSet, fmtDateLong, fmtDurationLong, setVol, fmtVol, parseDate, d
 import { ICON } from './icons.js';
 import { openSetEditor } from './setedit.js';
 import { getExercise } from '../exercises.js';
-import { perDumbbell } from '../coach.js';
+import { perDumbbell, dumbbells } from '../coach.js';
 
 const find = (id) => data.sessions.find((s) => s.id === id);
 const hhmm = (ms) => new Date(ms).toTimeString().slice(0, 5);
@@ -49,7 +49,7 @@ export const sessionScreen = {
       const chips = e.sets.map((x, i) => (x.status === 'done'
         ? `<button class="set-chip${x.pr ? ' pr' : ''}" data-action="set" data-ex="${xi}" data-set="${i}" aria-label="Satz ${i + 1} ändern">${fmtSet(x, ' × ', u)}</button>`
         : `<button class="set-chip skip" data-action="set" data-ex="${xi}" data-set="${i}" aria-label="Satz ${i + 1} nachtragen">+ Satz ${i + 1}</button>`)).join('');
-      e.sets.forEach((x) => { if (x.status === 'done') { sets++; vol += setVol(x); } });
+      e.sets.forEach((x) => { if (x.status === 'done') { sets++; vol += setVol(x, dumbbells(e.exId)); } });
       return `<section class="card se-ex">
         <div class="card-head"><h2>${esc(e.name)}</h2><span class="muted small">${u}${perDumbbell(e.exId) ? ' pro Hantel' : ''}${e.uni ? ' · einseitig' : ''}</span></div>
         <div class="sum-sets">${chips}<button class="set-chip add" data-action="addSet" data-ex="${xi}" aria-label="Satz hinzufügen">${ICON.plus}</button></div>
