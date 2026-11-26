@@ -214,17 +214,20 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 
 /* ---------- Tab-Leiste ---------- */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; justify-content: space-around; gap: 4px;
-  padding: 6px 10px calc(6px + var(--safe-bottom)); background: rgba(15, 21, 25, 0.82);
-  -webkit-backdrop-filter: blur(24px) saturate(1.7); backdrop-filter: blur(24px) saturate(1.7); border-top: 0.5px solid var(--hairline);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; display: flex; justify-content: space-around; gap: 0;
+  padding: 6px 4px calc(6px + var(--safe-bottom)); background: #121a1f; /* deckend: sieht immer gleich aus, auch beim Tab-Wechsel */
+  border-top: 0.5px solid var(--hairline);
+  view-transition-name: tabbar; /* eigene Ebene: blendet beim Tab-Wechsel nicht mit über */
 }
 .tab {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  flex: 1; max-width: 96px; min-width: 0; height: 54px; border-radius: 14px;
-  color: var(--muted); font-size: 0.6rem; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; transition: transform 90ms ease-out, color 150ms ease;
+  flex: 1; max-width: 96px; min-width: 0; height: 56px; border-radius: 14px;
+  color: var(--muted); font-size: min(0.6rem, 2.9vw); font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; transition: transform 90ms ease-out, color 150ms ease;
 }
-.tab svg { width: 24px; height: 24px; stroke-width: 1.9; }
-.tab.on { color: var(--accent); background: var(--accent-soft); }
+/* Markierung nur hinter dem Symbol (Pille) – der Text hat so immer Luft */
+.tab svg { width: 24px; height: 24px; stroke-width: 1.9; box-sizing: content-box; padding: 4px 16px; border-radius: 999px; transition: background-color 150ms ease; }
+.tab.on { color: var(--accent); }
+.tab.on svg { background: var(--accent-soft); }
 .tab.pressed { transform: scale(0.95); }
 .has-tabbar ~ .active-bar { bottom: calc(80px + var(--safe-bottom)); }
 
@@ -1001,7 +1004,7 @@ button.hist-row .chev { grid-column: 2; grid-row: 1 / span 2; color: var(--muted
 .scan-type { position: absolute; bottom: calc(110px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, .18); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 
 /* ---------- Neuheiten ---------- */
-.tab-dot { position: absolute; top: 7px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 2px rgba(15, 21, 25, .9); }
+.tab-dot { position: absolute; top: 4px; left: calc(50% + 12px); width: 9px; height: 9px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 2px rgba(15, 21, 25, .9); }
 .news-count { font-size: 0.765rem; font-weight: 700; color: #fff; background: #e5484d; padding: 2px 8px; border-radius: 999px; }
 .news-list { list-style: none; margin: 4px 0 0; padding: 0; }
 .news-row { display: flex; flex-direction: column; gap: 2px; padding: 11px 0; border-top: 0.5px solid var(--separator); }
@@ -1053,3 +1056,7 @@ body { overflow-wrap: break-word; }
 .meal-item .icon-btn { flex: none; }
 .meal-item .field.mini { flex: 0 0 6.2em; width: 6.2em; }
 .meal-item .field.mini input { font-size: 1.05rem; }
+
+/* Tab-Leiste beim Wechsel zwischen Tabs: stehen lassen statt überblenden */
+html[data-nav="fade"]::view-transition-old(tabbar) { display: none; }
+html[data-nav="fade"]::view-transition-new(tabbar) { animation: none; }
