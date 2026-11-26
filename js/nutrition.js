@@ -243,6 +243,7 @@ export function logFood(food, grams) {
     id: uid(), t: Date.now(), date: dateStr(), name: food.name, g: Math.round(grams), cat: food.cat || '',
     kcal: Math.round(food.kcal * k), p: r1(food.p * k), c: r1(food.c * k), f: r1(food.f * k),
     fib: r1((food.fib || 0) * k), sug: r1((food.sug || 0) * k), sat: r1((food.sat || 0) * k),
+    ...(food.meal ? { vegG: Math.round((food.vegP || 0) * k), fruitG: Math.round((food.fruitP || 0) * k), freeSug: r1((food.freeSugP || 0) * k) } : {}),
     ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, fib: food.fib, sug: food.sug, sat: food.sat, portion: food.portion, unit: food.unit, cat: food.cat },
   };
   data.food.push(e);
@@ -272,9 +273,12 @@ export function sumOf(list) {
     z.kcal += x.kcal; z.p += x.p || 0; z.c += x.c || 0; z.f += x.f || 0;
     z.fib += x.fib || 0; z.sug += x.sug || 0; z.sat += x.sat || 0;
     // Freier Zucker (WHO): Zucker aus Obst/Gemüse/Milch zählt nicht, Saft schon
-    if (x.cat !== 'o' && x.cat !== 'v' && x.cat !== 'd') z.freeSug += x.sug || 0;
+    if (x.freeSug != null) z.freeSug += x.freeSug; // Gericht: schon aus den Zutaten berechnet
+    else if (x.cat !== 'o' && x.cat !== 'v' && x.cat !== 'd') z.freeSug += x.sug || 0;
     if (x.cat === 'v') z.veg += x.g || 0;
     if (x.cat === 'o') z.fruit += x.g || 0;
+    z.veg += x.vegG || 0;
+    z.fruit += x.fruitG || 0;
     if (x.cat === 'j') z.fruit += Math.min(x.g || 0, 150) * 0.5; // Saft zählt höchstens halb
     if (x.ref || x.fib != null) z.known += x.kcal; // Einträge mit Detail-Nährwerten
   }
@@ -336,10 +340,11 @@ export function recentFoods(limit = 8) {
 }
 
 /** Lokale Suche (eingebaute Liste + zuletzt gegessen). */
-export function searchLocal(q) {
+export function searchLocal(q, { withMeals = true } = {}) {
   const s = q.trim().toLowerCase();
-  const recent = recentFoods(20);
-  const all = [...recent, ...FOODS.filter((f) => !recent.some((r) => r.name === f.name))];
+  const own = withMeals ? data.meals.map(mealAsFood) : [];
+  const recent = recentFoods(20).filter((r) => !String(r.id).startsWith('m:') && !own.some((m) => m.name === r.name));
+  const all = [...own, ...recent, ...FOODS.filter((f) => !recent.some((r) => r.name === f.name))];
   if (!s) return all.slice(0, 30);
   return all.filter((f) => f.name.toLowerCase().includes(s)).slice(0, 30);
 }
@@ -376,4 +381,54 @@ export async function byBarcode(code) {
   if (!r.ok) return null;
   const d = await r.json();
   return d.product ? fromOFF({ ...d.product, code }) : null;
+}
+
+// ---------- Eigene Gerichte ----------
+
+/** Summen eines Gerichts (gesamt) aus seinen Zutaten. */
+export function mealTotals(meal) {
+  const z = { g: 0, kcal: 0, p: 0, c: 0, f: 0, fib: 0, sug: 0, sat: 0, freeSug: 0, veg: 0, fruit: 0 };
+  for (const { food, g } of meal.items) {
+    const k = g / 100;
+    z.g += g; z.kcal += food.kcal * k; z.p += food.p * k; z.c += food.c * k; z.f += food.f * k;
+    z.fib += (food.fib || 0) * k; z.sug += (food.sug || 0) * k; z.sat += (food.sat || 0) * k;
+    if (!['o', 'v', 'd'].includes(food.cat)) z.freeSug += (food.sug || 0) * k;
+    if (food.cat === 'v') z.veg += g;
+    if (food.cat === 'o') z.fruit += g;
+    if (food.cat === 'j') z.fruit += Math.min(g, 150) * 0.5;
+  }
+  return z;
+}
+
+/** Gericht als "Lebensmittel" (Werte je 100 g), damit es wie jedes andere eingetragen werden kann. */
+export function mealAsFood(meal) {
+  const t = mealTotals(meal);
+  const per = (v) => (t.g ? r1((v / t.g) * 100) : 0);
+  return {
+    id: 'm:' + meal.id, mealId: meal.id, meal: true, name: meal.name,
+    kcal: per(t.kcal), p: per(t.p), c: per(t.c), f: per(t.f), fib: per(t.fib), sug: per(t.sug), sat: per(t.sat),
+    freeSugP: per(t.freeSug), vegP: per(t.veg), fruitP: per(t.fruit), cat: '',
+    portion: Math.round(t.g / (meal.servings || 1)), unit: 'Portion', totalG: Math.round(t.g),
+  };
+}
+
+export const meals = () => data.meals;
+
+export function saveMeal(meal) {
+  const m = { id: meal.id || uid(), name: meal.name.trim().slice(0, 40), servings: Math.max(1, Math.round(meal.servings || 1)), items: meal.items.map(({ food, g }) => ({ food: stripFood(food), g: Math.round(g) })) };
+  const i = data.meals.findIndex((x) => x.id === m.id);
+  if (i >= 0) data.meals[i] = m; else data.meals.push(m);
+  save();
+  return m;
+}
+
+export function deleteMeal(id) {
+  data.meals = data.meals.filter((m) => m.id !== id);
+  save();
+}
+
+/** Nur die Nährwerte speichern (keine Hilfsfelder). */
+function stripFood(f) {
+  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit } = f;
+  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g' };
 }

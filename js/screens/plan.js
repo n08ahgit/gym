@@ -54,6 +54,10 @@ export const editScreen = {
             <button data-action="rest" data-i="${i}" data-d="-1" ${e.rest <= 0 ? 'disabled' : ''} aria-label="Kürzere Pause">${ICON.minus}</button>
             <span class="stepper-mid"><span class="stepper-label">Pause</span><span class="stepper-val">${fmtClock(e.rest)}</span></span>
             <button data-action="rest" data-i="${i}" data-d="1" ${e.rest >= 600 ? 'disabled' : ''} aria-label="Längere Pause">${ICON.plus}</button></div>
+          <div class="seg-wrap side-toggle" role="group" aria-label="Ausführung">
+            <button class="seg-item${e.uni ? '' : ' on'}" data-action="uni" data-i="${i}" data-v="0">Beidseitig</button>
+            <button class="seg-item${e.uni ? ' on' : ''}" data-action="uni" data-i="${i}" data-v="1">Einseitig (L/R)</button>
+          </div>
         </div>
       </li>`)
       .join('');
@@ -87,6 +91,12 @@ export const editScreen = {
     },
     add: () => go('search', { idx: draft.idx, q: '' }),
     info: (el) => { const e = draft.workout.exercises[+el.dataset.i]; openExerciseInfo(e.exId, e.name); },
+    uni: (el) => {
+      const e = draft.workout.exercises[+el.dataset.i];
+      if (el.dataset.v === '1') e.uni = true; else delete e.uni;
+      draft.dirty = true;
+      render();
+    },
     up: (el) => move(+el.dataset.i, -1),
     down: (el) => move(+el.dataset.i, 1),
     remove: (el) => { draft.workout.exercises.splice(+el.dataset.i, 1); draft.dirty = true; render(); },
@@ -137,7 +147,7 @@ function resultsHtml(q) {
   return res
     .slice(0, 60)
     .map((e) => `<button class="result" data-action="pick" data-id="${esc(e.id)}">
-        <span class="result-name">${esc(e.name)}${e.custom ? ' <span class="tag">eigene</span>' : ''}</span>
+        <span class="result-name">${esc(e.name)}${e.custom ? ' <span class="tag">eigene</span>' : ''}${e.uni ? ' <span class="uni-tag">einseitig</span>' : ''}</span>
         <span class="result-sub">${esc(muscleNames(e.primary))}</span></button>`)
     .join('') + custom;
 }
@@ -175,7 +185,7 @@ export const searchScreen = {
 };
 
 function addToDraft(ex) {
-  draft.workout.exercises.push({ exId: ex.id, name: ex.name, sets: DEFAULT_SETS, rest: DEFAULT_REST });
+  draft.workout.exercises.push({ exId: ex.id, name: ex.name, sets: DEFAULT_SETS, rest: DEFAULT_REST, ...(ex.uni ? { uni: true } : {}) });
   draft.dirty = true;
   toast(`${ex.name} hinzugefügt`);
   go('edit', { idx: draft.idx });

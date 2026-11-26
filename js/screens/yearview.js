@@ -7,7 +7,7 @@
 
 import { go, render, ui, openSheet } from '../app.js';
 import { data, sessionsByDate, planVersionFor, currentVersion, plannedOf } from '../store.js';
-import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, fmtNum, fmtBig, esc } from '../util.js';
+import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, fmtNum, fmtBig, esc, setVol, fmtSet } from '../util.js';
 import { dayStatus } from '../year.js';
 import { ICON } from './icons.js';
 
@@ -102,10 +102,10 @@ function openDay(ds) {
   if (st === 'done') {
     body = byDate.get(ds).map((s) => {
       const done = s.exercises.map((e) => ({ name: e.name, sets: e.sets.filter((x) => x.status === 'done') })).filter((e) => e.sets.length);
-      const vol = done.reduce((a, e) => a + e.sets.reduce((b, x) => b + (x.w || 0) * (x.r || 0), 0), 0);
+      const vol = done.reduce((a, e) => a + e.sets.reduce((b, x) => b + setVol(x), 0), 0);
       const n = done.reduce((a, e) => a + e.sets.length, 0);
       return `<p class="muted small sheet-sub">${esc(s.workoutName)} · ${fmtDurationLong(s.end - s.start)} · ${n} Sätze · ${fmtBig(vol)} kg</p>
-        <ul class="sheet-list">${done.map((e) => `<li><span>${esc(e.name)}</span><span class="muted">${e.sets.map((x) => `${fmtNum(x.w)}×${fmtNum(x.r)}`).join(' · ')}</span></li>`).join('')}</ul>`;
+        <ul class="sheet-list">${done.map((e) => `<li><span>${esc(e.name)}</span><span class="muted">${e.sets.map((x) => fmtSet(x, '×')).join(' · ')}</span></li>`).join('')}</ul>`;
     }).join('');
   } else {
     const w = plannedOf(st === 'future' ? currentVersion() : planVersionFor(ds), ds);

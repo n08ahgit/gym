@@ -17,7 +17,9 @@ import { columnChart } from '../charts.js';
 import {
   JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood,
   entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterTarget, logWater, undoWater, fmtL,
+  meals, mealAsFood, mealTotals, saveMeal, deleteMeal,
 } from '../nutrition.js';
+import { ask } from '../app.js';
 
 const bar = (val, max, cls = '') => `<div class="nbar ${cls}${val > max * 1.05 ? ' over' : ''}"><i style="width:${Math.min(100, max ? (val / max) * 100 : 0)}%"></i></div>`;
 
@@ -251,8 +253,8 @@ function openAddSheet() {
   let online = [];
   let timer, ctrl;
   const list = () => {
-    const item = (f, i) => `<button class="drink" data-action="pick" data-i="${i}"><span class="drink-name">${esc(f.name)}</span>
-      <span class="drink-meta"><b>${f.kcal}</b> kcal · ${fmtNum(f.p)} g P <small>/100 g</small></span></button>`;
+    const item = (f, i) => `<button class="drink" data-action="pick" data-i="${i}"><span class="drink-name">${esc(f.name)}${f.meal ? ' <span class="uni-tag">Gericht</span>' : ''}</span>
+      <span class="drink-meta">${f.meal ? `<b>${fmtBig(f.kcal * f.portion / 100)}</b> kcal · ${fmtNum(Math.round(f.p * f.portion / 10) / 10)} g P <small>/Portion</small>` : `<b>${f.kcal}</b> kcal · ${fmtNum(f.p)} g P <small>/100 g</small>`}</span></button>`;
     return (results.length ? results.map((f, i) => item(f, i)).join('') : '')
       + (online.length ? `<div class="drinks-sep">Online (Open Food Facts)</div>${online.map((f, i) => item(f, results.length + i)).join('')}` : '')
       || '<p class="muted small pad">Nichts gefunden – unten „Schnell eintragen“ nutzen.</p>';
@@ -264,6 +266,7 @@ function openAddSheet() {
       ${'BarcodeDetector' in window ? `<button class="btn" data-action="scan" aria-label="Barcode scannen">${ICON.barcode}</button>` : ''}
     </div>
     <p class="muted small" id="onlineState" style="margin:6px 2px 0"></p>
+    <button class="btn dashed" data-action="newMeal">${ICON.plus} Eigenes Gericht erstellen</button>
     <div class="drinks food-res" id="foodRes">${list()}</div>
     <h3 class="sheet-h">Schnell eintragen</h3>
     <input id="qName" class="input" placeholder="Name (optional)" maxlength="40" autocomplete="off" style="margin-bottom:8px">
@@ -299,6 +302,7 @@ function openAddSheet() {
       },
     },
     pick: (el) => openAmountSheet([...results, ...online][Number(el.dataset.i)]),
+    newMeal: () => openMealBuilder(),
     quick: () => {
       const num = (id) => { const x = parseNum(document.getElementById(id).value); return x && !Number.isNaN(x) ? x : 0; };
       const vals = { kcal: num('qKcal'), p: num('qP'), c: num('qC'), f: num('qF') };
@@ -318,11 +322,18 @@ function openAmountSheet(food) {
   const chips = [[food.portion, `1 ${food.unit || 'Portion'}`], [food.portion * 2, `2 ${food.unit || 'Portionen'}`], [100, '100 g']]
     .filter(([g], i, a) => g && a.findIndex(([x]) => x === g) === i);
   openSheet(`<h2 class="sheet-title">${esc(food.name)}</h2>
-    <p class="muted small sheet-sub">Je 100 g: ${food.kcal} kcal · ${fmtNum(food.p)} g Protein${food.fib ? ` · ${fmtNum(food.fib)} g Ballaststoffe` : ''}</p>
+    <p class="muted small sheet-sub">${food.meal ? `Ganzes Gericht ${fmtBig(food.totalG)} g · 1 Portion = ${fmtBig(food.portion)} g · ` : ''}Je 100 g: ${food.kcal} kcal · ${fmtNum(food.p)} g Protein${food.fib ? ` · ${fmtNum(food.fib)} g Ballaststoffe` : ''}</p>
     <label class="field amount"><input id="aG" inputmode="decimal" value="${start}" data-input="g" data-enter="log"><span>g</span></label>
     <div class="chips amount-chips">${chips.map(([g, l]) => `<button class="chip" data-action="setG" data-g="${g}">${l}</button>`).join('')}</div>
     <p class="amount-calc" id="aCalc">${calc(start)}</p>
-    <div class="sheet-actions"><button class="btn primary big" data-action="log">Eintragen</button></div>`, {
+    <div class="sheet-actions"><button class="btn primary big" data-action="log">Eintragen</button>
+      ${food.meal ? '<div class="row"><button class="btn" data-action="editMeal">Gericht bearbeiten</button><button class="btn ghost danger" data-action="delMeal">Löschen</button></div>' : ''}</div>`, {
+    editMeal: () => openMealBuilder(meals().find((m) => m.id === food.mealId)),
+    delMeal: async () => {
+      closeSheet();
+      if (!(await ask(`„${food.name}“ löschen?`, 'Bereits eingetragene Mahlzeiten bleiben erhalten.', 'Löschen', true))) return;
+      deleteMeal(food.mealId); toast('Gericht gelöscht'); render();
+    },
     inputs: { g: (el) => { const g = parseNum(el.value); if (g && !Number.isNaN(g)) document.getElementById('aCalc').innerHTML = calc(g); } },
     setG: (el) => { document.getElementById('aG').value = el.dataset.g; document.getElementById('aCalc').innerHTML = calc(+el.dataset.g); },
     log: () => {
@@ -332,6 +343,97 @@ function openAmountSheet(food) {
       closeSheet();
       toast(`${food.name}: ${e.kcal} kcal eingetragen`);
       ui.params.date = null;
+      render();
+    },
+  });
+}
+
+// ---------- Eigenes Gericht erstellen / bearbeiten ----------
+
+/**
+ * Baukasten: Name, Portionen, Zutaten (aus Liste oder online) mit Gramm.
+ * Ergebnis wird als Gericht gespeichert und erscheint beim Eintragen ganz oben.
+ */
+function openMealBuilder(meal = null) {
+  const st = { id: meal?.id, name: meal?.name || '', servings: meal?.servings || 1, items: meal ? meal.items.map((x) => ({ ...x })) : [] };
+  let results = [], online = [], timer, ctrl;
+  const totals = () => {
+    const t = mealTotals(st);
+    const per = (v) => v / (st.servings || 1);
+    return st.items.length
+      ? `<div class="meal-sum"><div><span>Ganzes Gericht</span><b>${fmtBig(t.kcal)} kcal</b><small>${fmtBig(t.g)} g · P ${Math.round(t.p)} · KH ${Math.round(t.c)} · F ${Math.round(t.f)}</small></div>
+         <div><span>Pro Portion (${st.servings})</span><b>${fmtBig(per(t.kcal))} kcal</b><small>${fmtBig(per(t.g))} g · P ${Math.round(per(t.p))} · KH ${Math.round(per(t.c))} · F ${Math.round(per(t.f))}</small></div></div>`
+      : '<p class="muted small pad">Noch keine Zutaten – unten suchen und antippen.</p>';
+  };
+  const itemsHtml = () => st.items.map((x, i) => `<div class="meal-item">
+      <span class="meal-item-name">${esc(x.food.name)}<small id="mk${i}">${fmtBig(x.food.kcal * x.g / 100)} kcal</small></span>
+      <label class="field mini"><input inputmode="decimal" value="${x.g}" data-input="mg" data-i="${i}"><span>g</span></label>
+      <button class="icon-btn sm" data-action="rmItem" data-i="${i}" aria-label="Entfernen">${ICON.x}</button></div>`).join('');
+  const resHtml = () => [...results, ...online].slice(0, 25).map((f, i) => `<button class="drink" data-action="addItem" data-i="${i}">
+      <span class="drink-name">${esc(f.name)}</span><span class="drink-meta"><b>${f.kcal}</b> kcal <small>/100 g</small></span></button>`).join('');
+  const redraw = () => {
+    document.getElementById('mItems').innerHTML = itemsHtml();
+    document.getElementById('mSum').innerHTML = totals();
+  };
+  const redrawRes = () => { document.getElementById('mRes').innerHTML = resHtml(); };
+  openSheet(`<h2 class="sheet-title">${meal ? 'Gericht bearbeiten' : 'Eigenes Gericht'}</h2>
+    <label class="gfield"><span>Name</span><input id="mName" value="${esc(st.name)}" placeholder="z. B. Hähnchen-Reis-Bowl" maxlength="40" autocomplete="off" data-input="mname"></label>
+    <h3 class="sheet-h">Ergibt Portionen</h3>
+    <div class="seg-wrap seg-full" role="group">${[1, 2, 3, 4, 5, 6].map((n) => `<button class="seg-item${n === st.servings ? ' on' : ''}" data-action="serv" data-n="${n}">${n}</button>`).join('')}</div>
+    <h3 class="sheet-h">Zutaten</h3>
+    <div class="meal-items" id="mItems">${itemsHtml()}</div>
+    <div id="mSum">${totals()}</div>
+    <h3 class="sheet-h">Zutat hinzufügen</h3>
+    <input id="mQ" class="input" placeholder="Suchen, z. B. Reis, Hähnchen" autocomplete="off" data-input="mq">
+    <p class="muted small" id="mState" style="margin:6px 2px 0"></p>
+    <div class="drinks food-res" id="mRes"></div>
+    <div class="sheet-actions" style="margin-top:16px"><button class="btn primary big" data-action="saveMeal">Gericht speichern</button></div>`, {
+    inputs: {
+      mname: (el) => { st.name = el.value; },
+      mg: (el) => {
+        const g = parseNum(el.value);
+        if (!g || Number.isNaN(g)) return;
+        const it = st.items[+el.dataset.i];
+        it.g = g;
+        document.getElementById(`mk${el.dataset.i}`).textContent = `${fmtBig(it.food.kcal * g / 100)} kcal`;
+        document.getElementById('mSum').innerHTML = totals();
+      },
+      mq: (el) => {
+        const q = el.value;
+        results = q.trim() ? searchLocal(q, { withMeals: false }) : [];
+        online = [];
+        redrawRes();
+        clearTimeout(timer); ctrl?.abort();
+        const stEl = document.getElementById('mState');
+        if (q.trim().length < 3) { stEl.textContent = ''; return; }
+        stEl.textContent = 'Suche auch online …';
+        timer = setTimeout(async () => {
+          ctrl = new AbortController();
+          try { online = (await searchOnline(q.trim(), ctrl.signal)).filter((f) => !results.some((r) => r.name === f.name)); stEl.textContent = ''; redrawRes(); }
+          catch (e) { if (e.name !== 'AbortError') stEl.textContent = 'Online-Suche gerade nicht erreichbar.'; }
+        }, 450);
+      },
+    },
+    serv: (el) => {
+      st.servings = Number(el.dataset.n);
+      el.parentElement.querySelectorAll('.seg-item').forEach((b) => b.classList.toggle('on', b === el));
+      document.getElementById('mSum').innerHTML = totals();
+    },
+    addItem: (el) => {
+      const f = [...results, ...online][Number(el.dataset.i)];
+      st.items.push({ food: f, g: f.portion || 100 });
+      const q = document.getElementById('mQ'); q.value = ''; results = []; online = []; redrawRes();
+      redraw();
+      toast(`${f.name} hinzugefügt – Menge anpassen`);
+    },
+    rmItem: (el) => { st.items.splice(Number(el.dataset.i), 1); redraw(); },
+    saveMeal: () => {
+      st.name = document.getElementById('mName').value.trim();
+      if (!st.name) return toast('Bitte einen Namen eingeben');
+      if (!st.items.length) return toast('Mindestens eine Zutat hinzufügen');
+      const m = saveMeal(st);
+      closeSheet();
+      toast(`„${m.name}“ gespeichert – steht beim Eintragen ganz oben`);
       render();
     },
   });

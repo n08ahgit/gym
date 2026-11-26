@@ -16,7 +16,7 @@
 // =============================================================
 
 import { data, save } from './store.js';
-import { addDays, dateStr, uid } from './util.js';
+import { addDays, dateStr, uid, setVol } from './util.js';
 import { computeStreak } from './streak.js';
 import { e1rm } from './stats.js';
 import { bodyTrend } from './coach.js';
@@ -37,7 +37,7 @@ export function myStats(today = new Date()) {
     for (const ex of s.exercises) {
       for (const st of ex.sets) {
         if (st.status !== 'done') continue;
-        if (in28) { x4++; if (st.w && st.r) v4 += st.w * st.r; }
+        if (in28) { x4++; v4 += setVol(st); }
         if (s.date >= from90 && BIG3[ex.exId] && st.w && st.r) e[ex.exId] = Math.max(e[ex.exId] || 0, Math.round(e1rm(st.w, st.r) * 2) / 2);
       }
     }

@@ -19,7 +19,7 @@ import { loadActive, saveActive, lastDoneSets, addSession } from '../store.js';
 import { getExercise, muscleNames } from '../exercises.js';
 import { bodyImage } from '../bodyimage.js';
 import { beep } from '../audio.js';
-import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid } from '../util.js';
+import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet } from '../util.js';
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';
@@ -62,6 +62,7 @@ export function startWorkout(dayIdx, workout) {
         name: ex?.name || e.name,
         primary: ex?.primary || [],
         secondary: ex?.secondary || [],
+        uni: e.uni ?? !!ex?.uni, // einseitig: links und rechts getrennt
         sets: e.sets,
         rest: e.rest,
         results: [],
@@ -97,10 +98,11 @@ function toSummary() {
 }
 
 /** Satz erledigt (Werte schon geprüft). Rückgabe: Rekord oder null. */
-function completeSet(w, r) {
+function completeSet(w, r, sides = null) {
   const it = curItem();
+  // Einseitig: r = schwächere Seite (zählt für Rekord/Steigerung), rl/rr = beide Seiten
   const rec = checkRecord(it.exId, w, r, it.results);
-  it.results[active.cur.set] = { w, r, status: 'done', ...(rec ? { pr: 1 } : {}) };
+  it.results[active.cur.set] = { w, r, ...(sides ? { rl: sides[0], rr: sides[1] } : {}), status: 'done', ...(rec ? { pr: 1 } : {}) };
   const restDefault = it.rest;
   advance();
   if (isFinished()) toSummary();
@@ -154,7 +156,7 @@ function stats(a) {
     for (const r of it.results) {
       if (r?.status !== 'done') continue;
       sets++;
-      if (r.w != null && r.r != null) volume += r.w * r.r;
+      volume += setVol(r);
     }
   }
   return { sets, volume, duration: (a.endedAt || Date.now()) - a.startedAt };
@@ -240,7 +242,7 @@ function viewExercise() {
   }).join('');
   const todaySets = it.results
     .filter((r) => r?.status === 'done')
-    .map((r) => `${fmtNum(r.w)} × ${fmtNum(r.r)}`)
+    .map((r) => fmtSet(r))
     .join(' · ');
 
   return `${topbar(`Übung ${active.cur.ex + 1} von ${active.items.length}`)}
@@ -253,10 +255,13 @@ function viewExercise() {
       <p class="ex-muscles">${esc(muscleNames(it.primary))}</p>
       ${bodyImage(it.primary, it.secondary)}
       <div class="set-head"><span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
-      <p class="last">Letztes Mal: ${last ? `<b>${fmtNum(last.w)} kg × ${fmtNum(last.r)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
-      <div class="inputs">
+      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last).replace(' × ', ' kg × ')}</b>` : '<b>–</b> (noch keine Werte)'}</p>
+      <div class="inputs${it.uni ? ' uni' : ''}">
         <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtNum(ph.w) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusReps"><span>kg</span></label>
-        <label class="field"><input id="inR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph?.r != null ? fmtNum(ph.r) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Wdh</span></label>
+        ${it.uni
+          ? `<label class="field side"><input id="inRL" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rl ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusRight"><span>Links</span></label>
+             <label class="field side"><input id="inRR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rr ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Rechts</span></label>`
+          : `<label class="field"><input id="inR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph?.r != null ? fmtNum(ph.r) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Wdh</span></label>`}
       </div>
       ${coachBox(it)}
       ${todaySets ? `<p class="today-sets">Heute: ${todaySets}</p>` : ''}
@@ -333,7 +338,7 @@ function viewSummary() {
     const label = done.length === 0 ? '<span class="badge skip">übersprungen</span>'
       : done.length < it.sets ? `<span class="badge part">${done.length}/${it.sets}</span>`
       : '<span class="badge ok">gemacht</span>';
-    const sets = done.map((r) => `${fmtNum(r.w)} × ${fmtNum(r.r)}`).join(' · ');
+    const sets = done.map((r) => fmtSet(r)).join(' · ');
     const pr = done.some((r) => r.pr) ? `<span class="badge pr">${ICON.award} Rekord</span>` : '';
     return `<li><div class="sum-top"><span>${esc(it.name)}</span><span class="badges">${pr}${label}</span></div>${sets ? `<div class="sum-sets">${sets}</div>` : ''}</li>`;
   }).join('');
@@ -378,7 +383,8 @@ export const workoutScreen = {
   actions: {
     home: () => go('home'),
 
-    focusReps: () => document.getElementById('inR')?.focus(),
+    focusReps: () => (document.getElementById('inR') || document.getElementById('inRL'))?.focus(),
+    focusRight: () => document.getElementById('inRR')?.focus(),
 
     setDone: () => {
       const inW = document.getElementById('inW');
@@ -391,11 +397,20 @@ export const workoutScreen = {
         return p ? p : null;
       };
       const w = read(inW);
-      const r = read(inR);
-      if (Number.isNaN(w) || Number.isNaN(r)) return toast('Bitte gültige Zahlen eingeben');
-      if (r !== null && !Number.isInteger(r)) return toast('Wiederholungen bitte als ganze Zahl');
+      let r, sides = null;
+      if (curItem().uni) {
+        const rl = read(document.getElementById('inRL')), rr = read(document.getElementById('inRR'));
+        if ([rl, rr].some((x) => Number.isNaN(x) || (x !== null && !Number.isInteger(x)))) return toast('Wiederholungen bitte als ganze Zahlen');
+        sides = [rl ?? rr ?? null, rr ?? rl ?? null];
+        r = sides[0] == null ? null : Math.min(sides[0], sides[1]);
+      } else {
+        r = read(inR);
+        if (Number.isNaN(r)) return toast('Bitte gültige Zahlen eingeben');
+        if (r !== null && !Number.isInteger(r)) return toast('Wiederholungen bitte als ganze Zahl');
+      }
+      if (Number.isNaN(w)) return toast('Bitte gültige Zahlen eingeben');
       document.activeElement?.blur();
-      const rec = completeSet(w, r);
+      const rec = completeSet(w, r, sides);
       transition(render);
       window.scrollTo(0, 0);
       if (rec) setTimeout(() => showRecord(rec), 350);
@@ -405,9 +420,9 @@ export const workoutScreen = {
 
     useSug: () => {
       const sug = suggest(curItem().exId);
-      const inW = document.getElementById('inW'), inR = document.getElementById('inR');
+      const inW = document.getElementById('inW');
       if (sug.w != null) inW.value = fmtNum(sug.w);
-      if (sug.target != null) inR.value = sug.target;
+      if (sug.target != null) ['inR', 'inRL', 'inRR'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = sug.target; });
       toast('Vorschlag übernommen');
     },
 
@@ -490,6 +505,7 @@ export const workoutScreen = {
           exId: it.exId,
           name: it.name,
           planned: it.sets,
+          ...(it.uni ? { uni: true } : {}),
           // Nicht erreichte Sätze als übersprungen speichern
           sets: Array.from({ length: it.sets }, (_, i) => it.results[i] || { w: null, r: null, status: 'skipped' }),
         })),

@@ -12,7 +12,7 @@
 
 import { go, render, ui, openSheet, closeSheet, toast } from '../app.js';
 import { data, setBodyWeight } from '../store.js';
-import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum } from '../util.js';
+import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum, fmtSet } from '../util.js';
 import { bodyTrend } from '../coach.js';
 import { MUSCLES, getExercise } from '../exercises.js';
 import { RANGES, overview, weekly, strength, muscleSets, records, exerciseHistory, funFacts } from '../stats.js';
@@ -195,7 +195,7 @@ export const exstatScreen = {
 
     const hist = rows.slice().reverse().map((r) => `<div class="hist-row">
       <span class="hist-date">${fmtDateLong(r.date)}</span>
-      <span class="hist-sets">${r.sets.map((s) => `${fmtNum(s.w)}×${fmtNum(s.r)}`).join(' · ')}</span></div>`).join('');
+      <span class="hist-sets">${r.sets.map((s) => fmtSet(s, '×')).join(' · ')}</span></div>`).join('');
 
     return `<header class="topbar">
         <button class="glass-circle" data-action="back" aria-label="Zurück">${ICON.back}</button>

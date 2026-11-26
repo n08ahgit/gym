@@ -124,6 +124,21 @@ export const TIPS = {
   pallof: ['Seitlich zum Kabel, Griff vor der Brust.', 'Arme gerade nach vorn drücken, nicht verdrehen lassen.', 'Kurz halten, zurück.'],
   dead_bug: ['Rücken flach am Boden.', 'Gegenüberliegenden Arm und Bein langsam strecken.', 'Unterer Rücken bleibt am Boden.'],
 
+  // Einseitig
+  single_arm_cable_row: ['Seitlich zum Kabel, freie Hand stützt ab.', 'Ellbogen nah am Körper nach hinten zur Hüfte ziehen.', 'Vorn die Schulter mitgehen lassen – volle Dehnung im Latissimus.'],
+  single_arm_pulldown: ['Griff etwas vor dem Körper, leicht zur Arbeitsseite gelehnt.', 'Ellbogen nach unten zur Hüfte ziehen.', 'Oben ganz strecken lassen.'],
+  single_arm_db_press: ['Aufrecht, Bauch fest – nicht zur Seite ausweichen.', 'Hantel von Schulterhöhe senkrecht hochdrücken.', 'Schwächere Seite zuerst, gleiche Wiederholungen auf der anderen.'],
+  single_arm_chest_press: ['Sitz so, dass der Griff auf Brusthöhe ist.', 'Rumpf stabil, nicht mitdrehen.', 'Weit zurück in die Dehnung.'],
+  single_arm_cable_curl: ['Rücken zum Kabel, Arm hängt hinter dem Körper (Bayesian Curl).', 'Ellbogen bleibt hinten, nur der Unterarm bewegt sich.', 'Starke Dehnung unten – sehr effektiv für den Bizeps.'],
+  single_arm_pushdown: ['Ellbogen fest an der Seite.', 'Ganz nach unten strecken.', 'Kontrolliert hoch bis ca. 90°.'],
+  single_arm_overhead_ext: ['Ellbogen zeigt nach oben, bleibt an Ort und Stelle.', 'Tief hinter den Kopf absenken bis zur Dehnung.', 'Gut für den langen Trizepskopf.'],
+  single_leg_press: ['Fuß mittig auf der Plattform, Becken bleibt am Polster.', 'Tief absenken, ohne dass sich das Becken dreht.', 'Mit leichterem Gewicht als beidseitig starten.'],
+  single_leg_ext: ['Drehachse auf Kniehöhe.', 'Ganz strecken, oben kurz halten.', 'Gleicht Seitenunterschiede aus.'],
+  single_leg_curl: ['Knie knapp über der Polsterkante, Hüfte unten.', 'Ferse zum Po ziehen.', 'Langsam strecken.'],
+  single_leg_rdl: ['Standbein leicht gebeugt, Hüfte nach hinten schieben.', 'Freies Bein streckt sich nach hinten, Becken bleibt gerade.', 'Absenken bis zur Dehnung im Beinbeuger, Halt suchen erlaubt.'],
+  single_leg_calf: ['Fußballen auf der Kante, mit einer Hand festhalten.', 'Tief in die Dehnung, kurz halten.', 'Ganz hoch auf die Zehen.'],
+  single_leg_hip_thrust: ['Oberer Rücken an der Bank, ein Fuß am Boden.', 'Hüfte gerade hochdrücken, nicht kippen.', 'Oben Gesäß fest anspannen.'],
+
   // Ganzkörper
   power_clean: ['Wie Kreuzheben starten, Stange nah am Körper.', 'Explosiv Hüfte strecken und Stange auf die Schultern fangen.', 'Technik vor Gewicht – wenige, schnelle Wiederholungen.'],
   kb_swing: ['Hüfte nach hinten, Kugel zwischen die Beine.', 'Mit der Hüfte explosiv nach vorn schwingen.', 'Arme sind nur Seile, Rücken gerade.'],

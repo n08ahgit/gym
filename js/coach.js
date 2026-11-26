@@ -32,10 +32,11 @@ const POWER = new Set(['power_clean', 'box_jump', 'kb_swing', 'thruster']);
 const SMALL = new Set(['lateral_raise', 'cable_lateral', 'machine_lateral', 'reverse_fly', 'face_pull', 'standing_calf', 'seated_calf',
   'leg_press_calf', 'wrist_curl', 'reverse_curl', 'crunch', 'cable_crunch', 'ab_machine', 'hanging_leg_raise', 'leg_raise', 'situp',
   'russian_twist', 'woodchopper', 'pallof', 'dead_bug', 'kickback', 'concentration_curl', 'front_raise', 'shrugs', 'abductor_machine',
-  'adductor_machine', 'cable_kickback']);
+  'adductor_machine', 'cable_kickback', 'single_leg_calf']);
 const ISOLATION = new Set(['db_fly', 'cable_fly', 'low_cable_fly', 'pec_deck', 'straight_arm_pulldown', 'pullover', 'barbell_curl', 'db_curl',
   'hammer_curl', 'preacher_curl', 'cable_curl', 'incline_curl', 'machine_curl', 'pushdown', 'rope_pushdown', 'skullcrusher', 'overhead_ext',
-  'triceps_machine', 'leg_ext', 'leg_curl_lying', 'leg_curl_seated', 'nordic_curl', 'back_ext', 'upright_row', 'glute_bridge']);
+  'triceps_machine', 'leg_ext', 'leg_curl_lying', 'leg_curl_seated', 'nordic_curl', 'back_ext', 'upright_row', 'glute_bridge',
+  'single_arm_cable_curl', 'single_arm_pushdown', 'single_arm_overhead_ext', 'single_leg_ext', 'single_leg_curl']);
 const TIMED = new Set(['plank', 'side_plank', 'farmers_walk']);
 
 const BARBELL = new Set(['bench_press', 'incline_bench', 'decline_bench', 'barbell_row', 'pendlay_row', 'deadlift', 'rdl', 'sumo_deadlift',
