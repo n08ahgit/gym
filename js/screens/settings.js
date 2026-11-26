@@ -56,7 +56,7 @@ export const settingsScreen = {
             ${data.sessions.length} gespeicherte Workouts${first ? ` · Plan seit ${fmtDateLong(first)}` : ''}<br>
             Version ${APP_VERSION}
           </p>
-          <button class="btn ghost full" data-action="resetTraining">Training neu starten</button>
+          <button class="btn ghost full" data-action="resetTraining">Fortschritt zurücksetzen</button>
           <button class="btn ghost danger full" data-action="wipe">Alle Daten löschen</button>
         </section>
       </main>
@@ -130,17 +130,25 @@ export const settingsScreen = {
 
     resetTraining: async () => {
       if (!data.sessions.length) return toast('Noch keine Workouts – du startest schon bei null');
-      if (!(await ask('Training neu starten?', `Alle ${data.sessions.length} Workouts, Rekorde, Streak und Kraftverlauf werden gelöscht – du startest bei null. Dein Plan, Freunde, Ernährung, Supplements und Körpergewicht bleiben. Vorher wird eine Sicherung gemacht.`, 'Neu starten', true))) return;
+      if (!(await confirm3([
+        ['Fortschritt zurücksetzen?', `Alle ${data.sessions.length} Workouts, Rekorde, Streak und Kraftverlauf werden gelöscht – du startest bei null. Plan, Freunde, Ernährung, Supplements und Körpergewicht bleiben.`, 'Weiter'],
+        ['Wirklich sicher?', 'Dein ganzer Trainingsverlauf ist danach weg. Vorher wird eine Sicherung gemacht (14 Tage unter „Datensicherung“).', 'Ja, sicher'],
+        ['Letzte Bestätigung', `Jetzt ${data.sessions.length} Workouts endgültig zurücksetzen?`, 'Zurücksetzen'],
+      ]))) return;
       await autoBackup('-vor-neustart');
       resetTraining();
       discardActive();
       import('../friends.js').then((f) => f.publishMe(true)).catch(() => {}); // Rangliste: auch für Freunde bei null
-      toast('Neustart – viel Erfolg!');
+      toast('Fortschritt zurückgesetzt – viel Erfolg!');
       go('home');
     },
 
     wipe: async () => {
-      if (!(await ask('Alle Daten löschen?', 'Plan, Workouts und eigene Übungen werden gelöscht. Ein letzter Schnappschuss bleibt unter „Datensicherung“ erhalten.', 'Alles löschen', true))) return;
+      if (!(await confirm3([
+        ['Alle Daten löschen?', 'Plan, Workouts, Ernährung, Supplements, Freunde-Liste und eigene Übungen werden gelöscht.', 'Weiter'],
+        ['Wirklich sicher?', 'Die App ist danach wie neu installiert. Ein letzter Schnappschuss bleibt 14 Tage unter „Datensicherung“.', 'Ja, sicher'],
+        ['Letzte Bestätigung', 'Jetzt alle Daten endgültig löschen?', 'Alles löschen'],
+      ]))) return;
       await autoBackup('-vor-loeschen');
       wipeAll();
       discardActive();
@@ -184,6 +192,15 @@ async function fillSnapshots(root) {
     return `<li><span>${esc(label)}<br><span class="muted small">${sn.sessions} Workouts${tag}</span></span>
       <button class="chip" data-action="restore" data-id="${esc(sn.id)}">Wiederherstellen</button></li>`;
   }).join('') : '<li class="muted small">Noch keine – die erste entsteht, sobald du einen Plan oder ein Workout hast.</li>';
+}
+
+/** Gefährliche Aktionen: dreimal nacheinander bestätigen. steps = [[Titel, Text, Knopf], …] */
+async function confirm3(steps) {
+  for (const [title, text, okLabel] of steps) {
+    if (!(await ask(title, text, okLabel, true))) { toast('Abgebrochen – nichts gelöscht'); return false; }
+    await new Promise((r) => setTimeout(r, 250)); // kein versehentlicher Doppeltipp durch alle Stufen
+  }
+  return true;
 }
 
 // ---------- Zeilen + Unterfenster ----------
