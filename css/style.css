@@ -910,3 +910,20 @@ html[data-nav="unzoom"]::view-transition-new(root) { animation: vt-recede 380ms 
 .field .unit-toggle { flex: none; min-width: 44px; min-height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--accent); font: inherit; font-size: 0.882rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s ease, background-color .15s ease; }
 .field .unit-toggle:active { transform: scale(.94); }
 .inputs.uni .field .unit-toggle { min-width: 40px; padding: 0 8px; font-size: 0.8rem; }
+
+/* Sätze korrigieren: antippbare Satz-Chips, Zurück-Knopf */
+.set-head { position: relative; }
+.set-head .back-set { position: absolute; left: 0; display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 8px 0 2px; color: var(--accent); font-weight: 600; font-size: 0.882rem; }
+.set-head .back-set svg { width: 18px; height: 18px; }
+.today-sets { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; }
+.set-chip { display: inline-flex; align-items: center; min-height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); font: inherit; font-family: var(--font-num); font-size: 0.85rem; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s ease; }
+.set-chip:active { transform: scale(.95); }
+.set-chip.pr { border-color: var(--streak); }
+.set-chip.skip { color: var(--muted); border-style: dashed; background: none; }
+.sum-sets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sum-hint { margin: 16px 0 10px; }
+.saved-line { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; }
+.row.center.gap { justify-content: center; gap: 18px; }
+.row.center.gap .text-btn { display: inline-flex; align-items: center; gap: 4px; }
+.row.center.gap .text-btn svg { width: 16px; height: 16px; }
+.edit-inputs { margin: 8px 0 4px; }

@@ -10,7 +10,8 @@
 //   cur: { ex, set },        // Zeiger auf den NÄCHSTEN Satz
 //   phase: "exercise" | "restPick" | "rest" | "summary",
 //   rest: { end: ms, total: s } | null,   // Pause über End-Zeitstempel
-//   restDefault: s           // Vorschlag für die Pausenauswahl
+//   restDefault: s,          // Vorschlag für die Pausenauswahl
+//   prefill: { ex, set, w, r, rl, rr } | null  // Werte nach "Satz zurück"
 // }
 // =============================================================
 
@@ -100,6 +101,7 @@ function toSummary() {
 /** Satz erledigt (Werte schon geprüft). Rückgabe: Rekord oder null. */
 function completeSet(w, r, sides = null, u = null) {
   const it = curItem();
+  active.prefill = null;
   // Einseitig: r = schwächere Seite (zählt für Rekord/Steigerung), rl/rr = beide Seiten
   const rec = checkRecord(it.exId, w, r, it.results);
   it.results[active.cur.set] = { w, r, ...(u && w != null ? { u } : {}), ...(sides ? { rl: sides[0], rr: sides[1] } : {}), status: 'done', ...(rec ? { pr: 1 } : {}) };
@@ -115,6 +117,7 @@ function completeSet(w, r, sides = null, u = null) {
 }
 
 function skipSet() {
+  active.prefill = null;
   curItem().results[active.cur.set] = { w: null, r: null, status: 'skipped' };
   advance();
   if (isFinished()) toSummary();
@@ -122,12 +125,106 @@ function skipSet() {
 }
 
 function skipExercise() {
+  active.prefill = null;
   const it = curItem();
   for (let s = active.cur.set; s < it.sets; s++) it.results[s] = { w: null, r: null, status: 'skipped' };
   active.cur.ex++;
   active.cur.set = 0;
   if (isFinished()) toSummary();
   persist();
+}
+
+// ---------- Korrigieren ----------
+
+/** Position des zuletzt eingetragenen Satzes vor dem Zeiger (oder null). */
+function prevPos() {
+  let { ex, set } = active.cur;
+  if (ex >= active.items.length) { ex = active.items.length - 1; set = active.items[ex].sets; }
+  while (ex >= 0) {
+    if (set > 0) return { ex, set: set - 1 };
+    ex--;
+    if (ex >= 0) set = active.items[ex].sets;
+  }
+  return null;
+}
+
+/** Einen Satz zurück: Zeiger auf den letzten Satz, alte Werte stehen im Feld. */
+function backOneSet() {
+  const pos = prevPos();
+  if (!pos) return false;
+  const it = active.items[pos.ex];
+  const old = it.results[pos.set];
+  it.results.length = pos.set; // dieser und spätere Einträge (gibt es nicht) weg
+  active.cur = { ...pos };
+  active.prefill = old?.status === 'done' ? { ...pos, w: old.w, r: old.r, rl: old.rl, rr: old.rr } : null;
+  active.phase = 'exercise';
+  active.rest = null;
+  active.endedAt = null;
+  cancelRestPush();
+  persist();
+  return true;
+}
+
+/** Wert eines Satzes ändern (Fenster). Funktioniert für alle schon eingetragenen Sätze. */
+function openEditSet(exIdx, setIdx) {
+  const it = active.items[exIdx];
+  const old = it.results[setIdx];
+  if (!it || !old) return;
+  const u = exUnit(it.exId);
+  const done = old.status === 'done';
+  const repField = (id, label, v, enter) => `<label class="field${it.uni ? ' side' : ''}"><input id="${id}" inputmode="numeric" pattern="[0-9]*" value="${v != null ? fmtNum(v) : ''}" placeholder="0" autocomplete="off" data-enter="${enter}"><span>${label}</span></label>`;
+  openSheet(`<h2 class="sheet-title">${esc(it.name)}</h2>
+    <p class="muted small sheet-sub">Satz ${setIdx + 1} ${done ? 'ändern' : '(übersprungen) nachtragen'}</p>
+    <div class="inputs edit-inputs${it.uni ? ' uni' : ''}">
+      <label class="field"><input id="edW" inputmode="decimal" value="${done && old.w != null ? fmtWU(old.w, u, false) : ''}" placeholder="0" autocomplete="off" data-enter="saveEdit"><span>${u}</span></label>
+      ${it.uni ? repField('edRL', 'Links', done ? old.rl ?? old.r : null, 'saveEdit') + repField('edRR', 'Rechts', done ? old.rr ?? old.r : null, 'saveEdit')
+        : repField('edR', 'Wdh', done ? old.r : null, 'saveEdit')}
+    </div>
+    <div class="sheet-actions">
+      <button class="btn primary big" data-action="saveEdit">Speichern</button>
+      ${done ? '<button class="btn ghost big danger" data-action="skipEdit">Als übersprungen markieren</button>' : ''}
+      <button class="btn ghost big" data-action="closeSheet">Abbrechen</button>
+    </div>`, {
+    saveEdit: () => {
+      const num = (id) => parseNum(document.getElementById(id)?.value);
+      const w = fromU(num('edW'), u);
+      let r, sides = null;
+      if (it.uni) {
+        const rl = num('edRL'), rr = num('edRR');
+        if ([rl, rr].some((x) => Number.isNaN(x) || (x !== null && !Number.isInteger(x)))) return toast('Wiederholungen bitte als ganze Zahlen');
+        sides = [rl ?? rr ?? null, rr ?? rl ?? null];
+        r = sides[0] == null ? null : Math.min(sides[0], sides[1]);
+      } else {
+        r = num('edR');
+        if (Number.isNaN(r) || (r !== null && !Number.isInteger(r))) return toast('Wiederholungen bitte als ganze Zahl');
+      }
+      if (Number.isNaN(w)) return toast('Bitte gültige Zahlen eingeben');
+      if (w == null && r == null) return toast('Gewicht oder Wiederholungen eintragen');
+      const others = it.results.filter((_, i) => i !== setIdx);
+      const rec = checkRecord(it.exId, w, r, others);
+      it.results[setIdx] = { w, r, ...(w != null ? { u } : {}), ...(sides ? { rl: sides[0], rr: sides[1] } : {}), status: 'done', ...(rec ? { pr: 1 } : {}) };
+      persist();
+      closeSheet();
+      render();
+      toast('Satz geändert');
+    },
+    skipEdit: () => {
+      it.results[setIdx] = { w: null, r: null, status: 'skipped' };
+      persist();
+      closeSheet();
+      render();
+      toast('Als übersprungen markiert');
+    },
+  });
+  setTimeout(() => document.getElementById('edW')?.focus(), 350);
+}
+
+/** Antippbare Satz-Chips (zum Ändern). */
+function setChips(exIdx, u = null) {
+  const it = active.items[exIdx];
+  return it.results.map((r, i) => (r?.status === 'done'
+    ? `<button class="set-chip${r.pr ? ' pr' : ''}" data-action="editSet" data-ex="${exIdx}" data-set="${i}" aria-label="Satz ${i + 1} ändern">${fmtSet(r, ' × ', u)}</button>`
+    : '')).filter(Boolean).join('');
 }
 
 function startRest(sec) {
@@ -242,10 +339,9 @@ function viewExercise() {
     const cls = r?.status === 'done' ? 'done' : r?.status === 'skipped' ? 'skip' : i === s ? 'now' : '';
     return `<i class="${cls}"></i>`;
   }).join('');
-  const todaySets = it.results
-    .filter((r) => r?.status === 'done')
-    .map((r) => fmtSet(r, ' × ', u))
-    .join(' · ');
+  const todaySets = setChips(active.cur.ex, u);
+  const pf = active.prefill && active.prefill.ex === active.cur.ex && active.prefill.set === s ? active.prefill : null;
+  const val = (v, f = fmtNum) => (pf && v != null ? ` value="${f(v)}"` : '');
 
   return `${topbar(`Übung ${active.cur.ex + 1} von ${active.items.length}`)}
     ${progressBar()}
@@ -256,17 +352,17 @@ function viewExercise() {
       </div>
       <p class="ex-muscles">${esc(muscleNames(it.primary))}${movable().length > 1 ? ` · <button class="text-btn order-link" data-action="order">${ICON.swap} Reihenfolge</button>` : ''}</p>
       ${bodyImage(it.primary, it.secondary)}
-      <div class="set-head"><span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
+      <div class="set-head">${prevPos() ? `<button class="text-btn back-set" data-action="prevSet" aria-label="Einen Satz zurück">${ICON.back}<span>Zurück</span></button>` : ''}<span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
       <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last, ' × ', u).replace(' × ', ` ${u} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
       <div class="inputs${it.uni ? ' uni' : ''}">
-        <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtWU(ph.w, u, false) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusReps"><button class="unit-toggle" data-action="unitToggle" aria-label="Einheit für diese Übung: ${u} – antippen zum Wechseln">${u}</button></label>
+        <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtWU(ph.w, u, false) : '0'}"${val(pf?.w, (x) => fmtWU(x, u, false))} autocomplete="off" enterkeyhint="next" data-enter="focusReps"><button class="unit-toggle" data-action="unitToggle" aria-label="Einheit für diese Übung: ${u} – antippen zum Wechseln">${u}</button></label>
         ${it.uni
-          ? `<label class="field side"><input id="inRL" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rl ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusRight"><span>Links</span></label>
-             <label class="field side"><input id="inRR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rr ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Rechts</span></label>`
-          : `<label class="field"><input id="inR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph?.r != null ? fmtNum(ph.r) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Wdh</span></label>`}
+          ? `<label class="field side"><input id="inRL" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rl ?? ph.r ?? 0) : '0'}"${val(pf?.rl ?? pf?.r)} autocomplete="off" enterkeyhint="next" data-enter="focusRight"><span>Links</span></label>
+             <label class="field side"><input id="inRR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rr ?? ph.r ?? 0) : '0'}"${val(pf?.rr ?? pf?.r)} autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Rechts</span></label>`
+          : `<label class="field"><input id="inR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph?.r != null ? fmtNum(ph.r) : '0'}"${val(pf?.r)} autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Wdh</span></label>`}
       </div>
       ${coachBox(it)}
-      ${todaySets ? `<p class="today-sets">Heute: ${todaySets}</p>` : ''}
+      ${todaySets ? `<p class="today-sets"><span>Heute:</span> ${todaySets}</p>` : ''}
     </main>
     <footer class="bottom">
       <button class="btn primary big" data-action="setDone">Satz fertig</button>
@@ -297,18 +393,28 @@ function coachBox(it) {
   </div>`;
 }
 
+function lastSetLine() {
+  const pos = prevPos();
+  const r = pos && active.items[pos.ex].results[pos.set];
+  if (!r || r.status !== 'done') return `<p class="muted">${ICON.check} Satz gespeichert</p>`;
+  return `<p class="muted saved-line">${ICON.check} Gespeichert: <button class="set-chip" data-action="editSet" data-ex="${pos.ex}" data-set="${pos.set}" aria-label="Letzten Satz ändern">${fmtSet(r, ' × ', exUnit(active.items[pos.ex].exId))}</button></p>`;
+}
+
 function viewRestPick() {
   return `${topbar('Pause')}
     ${progressBar()}
     <main class="content center-col">
-      <p class="muted">${ICON.check} Satz gespeichert</p>
+      ${lastSetLine()}
       <button class="btn primary huge" data-action="startRest" data-sec="${active.restDefault}">
         <span class="huge-time">${fmtClock(active.restDefault)}</span><span class="huge-sub">Pause starten</span></button>
       <div class="custom-rest">
         <input id="customRest" class="input" inputmode="decimal" placeholder="Eigene Zeit (Min)" autocomplete="off" data-enter="startCustomRest">
         <button class="btn" data-action="startCustomRest">Start</button>
       </div>
-      <button class="text-btn muted" data-action="noRest">Ohne Pause weiter</button>
+      <div class="row center gap">
+        <button class="text-btn muted" data-action="noRest">Ohne Pause weiter</button>
+        <button class="text-btn muted" data-action="prevSet">${ICON.back} Satz zurück</button>
+      </div>
       ${nextUpHtml()}
     </main>`;
 }
@@ -328,6 +434,7 @@ function viewRest() {
         <button class="btn big nocaps" data-action="plus30">+30 s</button>
         <button class="btn primary big" data-action="endRest">Pause beenden</button>
       </div>
+      ${lastSetLine()}
       ${nextUpHtml()}
     </main>`;
 }
@@ -335,14 +442,15 @@ function viewRest() {
 function viewSummary() {
   const st = stats(active);
   const finished = isFinished();
-  const rows = active.items.map((it) => {
+  const rows = active.items.map((it, xi) => {
     const done = it.results.filter((r) => r?.status === 'done');
     const label = done.length === 0 ? '<span class="badge skip">übersprungen</span>'
       : done.length < it.sets ? `<span class="badge part">${done.length}/${it.sets}</span>`
       : '<span class="badge ok">gemacht</span>';
-    const sets = done.map((r) => fmtSet(r)).join(' · ');
+    const sets = setChips(xi, exUnit(it.exId));
+    const skipped = it.results.map((r, i) => (r?.status === 'skipped' ? `<button class="set-chip skip" data-action="editSet" data-ex="${xi}" data-set="${i}" aria-label="Übersprungenen Satz ${i + 1} nachtragen">+ Satz ${i + 1}</button>` : '')).join('');
     const pr = done.some((r) => r.pr) ? `<span class="badge pr">${ICON.award} Rekord</span>` : '';
-    return `<li><div class="sum-top"><span>${esc(it.name)}</span><span class="badges">${pr}${label}</span></div>${sets ? `<div class="sum-sets">${sets}</div>` : ''}</li>`;
+    return `<li><div class="sum-top"><span>${esc(it.name)}</span><span class="badges">${pr}${label}</span></div>${sets || skipped ? `<div class="sum-sets">${sets}${skipped}</div>` : ''}</li>`;
   }).join('');
 
   return `<header class="topbar"><span class="topbar-spacer"></span><span class="topbar-mid">Zusammenfassung</span><span class="topbar-spacer"></span></header>
@@ -354,6 +462,7 @@ function viewSummary() {
         <div><b>${st.sets}</b><span>Sätze</span></div>
         <div><b>${fmtVol(st.volume).replace(/ (kg|lb|t)$/, '')}</b><span>${fmtVol(st.volume).split(' ').pop()} Volumen</span></div>
       </div>
+      <p class="muted small sum-hint">Falsch eingetragen? Satz antippen und ändern.</p>
       <ul class="sum-list">${rows}</ul>
       ${st.sets === 0 ? '<p class="hint">Keine Sätze erledigt – es gibt nichts zu speichern.</p>' : ''}
     </main>
@@ -468,6 +577,16 @@ export const workoutScreen = {
     },
 
     info: () => { const it = curItem(); openExerciseInfo(it.exId, it.name); },
+
+    prevSet: () => {
+      if (!backOneSet()) return toast('Noch kein Satz eingetragen');
+      document.activeElement?.blur();
+      transition(render);
+      window.scrollTo(0, 0);
+      toast('Satz zurück – Werte korrigieren');
+    },
+
+    editSet: (el) => openEditSet(+el.dataset.ex, +el.dataset.set),
     order: () => openOrderSheet(),
 
     useSug: () => {
