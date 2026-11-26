@@ -8,7 +8,7 @@ import { data, save } from '../store.js';
 import { esc, fmtNum, fmtClock, parseNum, wu } from '../util.js';
 import { getExercise, muscleNames } from '../exercises.js';
 import { tipsFor } from '../tips.js';
-import { repRange, restAdvice, suggest, platesFor, PLATES, PLATES_LB } from '../coach.js';
+import { repRange, restAdvice, suggest, platesFor, PLATES, PLATES_LB, perDumbbell } from '../coach.js';
 
 /** Fenster mit Ausführung, Wdh.-Bereich, Pause und Steigerung für eine Übung. */
 export function openExerciseInfo(exId, fallbackName = '') {
@@ -25,6 +25,7 @@ export function openExerciseInfo(exId, fallbackName = '') {
     <ol class="cue-list">${cues}</ol>
     <h3 class="sheet-h">Für maximalen Muskelaufbau</h3>
     <dl class="facts-list">
+      ${perDumbbell(exId) ? '<div><dt>Gewicht</dt><dd>Pro Hantel eintragen – das Gewicht <b>einer</b> Kurzhantel, nicht beide zusammen</dd></div>' : ''}
       ${range ? `<div><dt>Wiederholungen</dt><dd>${range[0]}–${range[1]} pro Satz</dd></div>` : '<div><dt>Belastung</dt><dd>Zeit statt Wiederholungen</dd></div>'}
       <div><dt>Satzende</dt><dd>1–3 Wdh. vor dem Muskelversagen${range && range[0] >= 10 ? ', letzter Satz gern bis zum Versagen' : ''}</dd></div>
       <div><dt>Pause</dt><dd>${fmtClock(rLo)}–${fmtClock(rHi)} min</dd></div>

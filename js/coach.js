@@ -53,9 +53,13 @@ export function equipment(exId) {
   if (BODYWEIGHT.has(exId)) return 'bodyweight';
   const ex = getExercise(exId);
   const n = `${exId} ${ex?.name || ''}`.toLowerCase();
+  if (/(cable|kabel|maschine|machine)/.test(n)) return 'machine'; // z. B. Glute Kickbacks am Kabel
   if (/(^db_|kurzhantel|dumbbell|hammer|lateral_raise|front_raise|arnold|goblet|bulgarian|lunges|step_up|kickback|concentration|incline_curl|pullover|wrist)/.test(n)) return 'dumbbell';
   return 'machine';
 }
+
+/** Kurzhantel-Übung: Gewicht wird pro Hantel eingetragen (eine Hantel, nicht beide zusammen). */
+export const perDumbbell = (exId) => equipment(exId) === 'dumbbell';
 
 /** Ziel-Wiederholungsbereich [min, max] für Muskelaufbau. */
 export function repRange(exId) {

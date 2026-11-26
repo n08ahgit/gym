@@ -24,7 +24,7 @@ import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, p
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';
-import { suggest, hasPlates, checkRecord } from '../coach.js';
+import { suggest, hasPlates, checkRecord, perDumbbell } from '../coach.js';
 import { showRecord } from '../record.js';
 import { autoBackup } from '../backup.js';
 import { openExerciseInfo, openPlates } from './exinfo.js';
@@ -174,7 +174,7 @@ function openEditSet(exIdx, setIdx) {
   if (!old) return;
   openSetEditor({
     title: it.name,
-    sub: `Satz ${setIdx + 1} ${old.status === 'done' ? 'ändern' : '(übersprungen) nachtragen'}`,
+    sub: `Satz ${setIdx + 1} ${old.status === 'done' ? 'ändern' : '(übersprungen) nachtragen'}${perDumbbell(it.exId) ? ' · Gewicht pro Hantel' : ''}`,
     uni: it.uni, u: exUnit(it.exId), set: old,
     onSave: (ns) => {
       const rec = checkRecord(it.exId, ns.w, ns.r, it.results.filter((_, i) => i !== setIdx));
@@ -320,7 +320,7 @@ function viewExercise() {
       <p class="ex-muscles">${esc(muscleNames(it.primary))}${movable().length > 1 ? ` · <button class="text-btn order-link" data-action="order">${ICON.swap} Reihenfolge</button>` : ''}</p>
       ${bodyImage(it.primary, it.secondary)}
       <div class="set-head">${prevPos() ? `<button class="text-btn back-set" data-action="prevSet" aria-label="Einen Satz zurück">${ICON.back}<span>Zurück</span></button>` : ''}<span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
-      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last, ' × ', u).replace(' × ', ` ${u} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
+      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last, ' × ', u).replace(' × ', ` ${u}${perDumbbell(it.exId) ? ' pro Hantel' : ''} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
       <div class="inputs${it.uni ? ' uni' : ''}">
         <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtWU(ph.w, u, false) : '0'}"${val(pf?.w, (x) => fmtWU(x, u, false))} autocomplete="off" enterkeyhint="next" data-enter="focusReps"><button class="unit-toggle" data-action="unitToggle" aria-label="Einheit für diese Übung: ${u} – antippen zum Wechseln">${u}</button></label>
         ${it.uni
@@ -328,6 +328,7 @@ function viewExercise() {
              <label class="field side"><input id="inRR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rr ?? ph.r ?? 0) : '0'}"${val(pf?.rr ?? pf?.r)} autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Rechts</span></label>`
           : `<label class="field"><input id="inR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph?.r != null ? fmtNum(ph.r) : '0'}"${val(pf?.r)} autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Wdh</span></label>`}
       </div>
+      ${perDumbbell(it.exId) ? `<p class="weight-note">${ICON.info}<span>Gewicht <b>einer</b> Kurzhantel eintragen – nicht beide zusammen.</span></p>` : ''}
       ${coachBox(it)}
       ${todaySets ? `<p class="today-sets"><span>Heute:</span> ${todaySets}</p>` : ''}
     </main>

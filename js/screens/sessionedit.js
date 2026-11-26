@@ -13,6 +13,7 @@ import { esc, fmtSet, fmtDateLong, fmtDurationLong, setVol, fmtVol, parseDate, d
 import { ICON } from './icons.js';
 import { openSetEditor } from './setedit.js';
 import { getExercise } from '../exercises.js';
+import { perDumbbell } from '../coach.js';
 
 const find = (id) => data.sessions.find((s) => s.id === id);
 const hhmm = (ms) => new Date(ms).toTimeString().slice(0, 5);
@@ -50,7 +51,7 @@ export const sessionScreen = {
         : `<button class="set-chip skip" data-action="set" data-ex="${xi}" data-set="${i}" aria-label="Satz ${i + 1} nachtragen">+ Satz ${i + 1}</button>`)).join('');
       e.sets.forEach((x) => { if (x.status === 'done') { sets++; vol += setVol(x); } });
       return `<section class="card se-ex">
-        <div class="card-head"><h2>${esc(e.name)}</h2><span class="muted small">${u}${e.uni ? ' · einseitig' : ''}</span></div>
+        <div class="card-head"><h2>${esc(e.name)}</h2><span class="muted small">${u}${perDumbbell(e.exId) ? ' pro Hantel' : ''}${e.uni ? ' · einseitig' : ''}</span></div>
         <div class="sum-sets">${chips}<button class="set-chip add" data-action="addSet" data-ex="${xi}" aria-label="Satz hinzufügen">${ICON.plus}</button></div>
       </section>`;
     }).join('');
@@ -81,7 +82,7 @@ export const sessionScreen = {
       const e = s.exercises[xi], x = e.sets[si];
       const uni = e.uni ?? !!getExercise(e.exId)?.uni;
       openSetEditor({
-        title: e.name, sub: `${fmtDateLong(s.date)} · Satz ${si + 1}`, uni, u: exUnit(e.exId), set: x,
+        title: e.name, sub: `${fmtDateLong(s.date)} · Satz ${si + 1}${perDumbbell(e.exId) ? ' · Gewicht pro Hantel' : ''}`, uni, u: exUnit(e.exId), set: x,
         onSave: (ns) => { updateSession(s.id, (ss) => { ss.exercises[xi].sets[si] = ns; }); render(); },
         onSkip: () => { updateSession(s.id, (ss) => { ss.exercises[xi].sets[si] = { w: null, r: null, status: 'skipped' }; }); render(); },
         onDelete: () => {
@@ -99,7 +100,7 @@ export const sessionScreen = {
       const e = s.exercises[xi];
       const prev = [...e.sets].reverse().find((x) => x.status === 'done');
       openSetEditor({
-        title: e.name, sub: `Satz ${e.sets.length + 1} hinzufügen`, uni: e.uni ?? !!getExercise(e.exId)?.uni, u: exUnit(e.exId),
+        title: e.name, sub: `Satz ${e.sets.length + 1} hinzufügen${perDumbbell(e.exId) ? ' · Gewicht pro Hantel' : ''}`, uni: e.uni ?? !!getExercise(e.exId)?.uni, u: exUnit(e.exId),
         set: prev ? { ...prev } : null,
         onSave: (ns) => { updateSession(s.id, (ss) => { ss.exercises[xi].sets.push(ns); }); render(); },
       });
