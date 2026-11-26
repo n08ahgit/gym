@@ -79,6 +79,10 @@ const RAW = [
   ['Schokolade', 540, 6, 57, 31, 3, 50, 19, 25, 'Riegel', ''], ['Gummibärchen', 340, 7, 77, 0.1, 0, 46, 0, 50, 'Handvoll', ''],
   ['Chips', 540, 6, 50, 34, 4, 0.5, 3, 50, 'Portion', ''], ['Proteinriegel', 360, 33, 35, 10, 10, 3, 5, 60, 'Riegel', ''],
   ['Cola', 42, 0, 10.6, 0, 0, 10.6, 0, 330, 'Dose', ''], ['Orangensaft', 45, 0.7, 10, 0.2, 0.2, 9, 0, 250, 'Glas', 'j'],
+  ['Spaghetti Bolognese', 150, 7, 19, 5, 1.8, 2.5, 1.8, 400, 'Teller', ''], ['Sushi (gemischt)', 150, 6, 27, 2, 0.8, 4, 0.4, 250, 'Portion', ''],
+  ['Wrap mit Hähnchen', 200, 12, 22, 7, 2, 2, 1.8, 250, 'Stück', ''], ['Tortilla-Fladen (Weizen)', 310, 8, 50, 8, 3, 3, 3, 60, 'Stück', ''],
+  ['Currywurst mit Soße', 230, 9, 12, 16, 0.8, 8, 6, 250, 'Portion', ''], ['Schnitzel paniert', 230, 20, 12, 11, 0.6, 0.5, 2.5, 180, 'Stück', ''],
+  ['Pfannkuchen', 210, 7, 26, 8, 1, 6, 3, 100, 'Stück', ''], ['Kaiserschmarrn', 260, 7, 33, 11, 1, 15, 5, 300, 'Portion', ''],
 ];
 export const FOODS = RAW.map(([name, kcal, p, c, f, fib, sug, sat, portion, unit, cat]) => ({ id: 'b:' + name, name, kcal, p, c, f, fib, sug, sat, portion, unit, cat }));
 
@@ -244,7 +248,7 @@ export function logFood(food, grams) {
     kcal: Math.round(food.kcal * k), p: r1(food.p * k), c: r1(food.c * k), f: r1(food.f * k),
     fib: r1((food.fib || 0) * k), sug: r1((food.sug || 0) * k), sat: r1((food.sat || 0) * k),
     ...(food.meal ? { vegG: Math.round((food.vegP || 0) * k), fruitG: Math.round((food.fruitP || 0) * k), freeSug: r1((food.freeSugP || 0) * k) } : {}),
-    ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, fib: food.fib, sug: food.sug, sat: food.sat, portion: food.portion, unit: food.unit, cat: food.cat },
+    ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, fib: food.fib, sug: food.sug, sat: food.sat, portion: food.portion, unit: food.unit, cat: food.cat, ...(food.liquid ? { liquid: true } : {}) },
   };
   data.food.push(e);
   save();
@@ -339,14 +343,9 @@ export function recentFoods(limit = 8) {
   return out;
 }
 
-/** Lokale Suche (eingebaute Liste + zuletzt gegessen). */
-export function searchLocal(q, { withMeals = true } = {}) {
-  const s = q.trim().toLowerCase();
-  const own = withMeals ? data.meals.map(mealAsFood) : [];
-  const recent = recentFoods(20).filter((r) => !String(r.id).startsWith('m:') && !own.some((m) => m.name === r.name));
-  const all = [...own, ...recent, ...FOODS.filter((f) => !recent.some((r) => r.name === f.name))];
-  if (!s) return all.slice(0, 30);
-  return all.filter((f) => f.name.toLowerCase().includes(s)).slice(0, 30);
+/** Lokale Suche (eigene Gerichte, zuletzt gegessen, eingebaute Liste, große Datenbank). */
+export function searchLocal(q, opts = {}) {
+  return searchFoods(q, opts);
 }
 
 // ---------- Online: Open Food Facts (kostenlos, offene Datenbank) ----------
@@ -431,4 +430,91 @@ export function deleteMeal(id) {
 function stripFood(f) {
   const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit } = f;
   return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g' };
+}
+
+// ---------- Große Datenbank: Schweizer Nährwertdatenbank (BLV, V 7.1) ----------
+// 1.216 Grundlebensmittel und Gerichte, frei nutzbar mit Quellenangabe.
+// Wird erst beim ersten Suchen geladen (ca. 110 KB) und offline gespeichert.
+
+export const DB_SOURCE = 'Schweizer Nährwertdatenbank V 7.1 (01.07.2026), BLV – naehrwertdaten.ch';
+let chDb = null;
+let chLoading = null;
+
+export function loadFoodDb() {
+  if (chDb) return Promise.resolve(chDb);
+  chLoading ||= fetch('data/foods-ch.json').then((r) => r.json()).then((d) => {
+    chDb = d.items.map(([name, syn, kcal, p, c, f, fib, sug, sat, cat, portion, unit, liquid]) => ({
+      id: 'ch:' + name, name, syn, kcal, p, c, f, fib, sug, sat, cat, portion, unit, liquid: !!liquid, src: 'ch',
+    }));
+    return chDb;
+  }).catch(() => { chLoading = null; return []; });
+  return chLoading;
+}
+export const foodDbReady = () => !!chDb;
+
+// Deutsche Suchwörter → Begriffe der Schweizer Datenbank
+const SYN = {
+  brokkoli: ['broccoli'], hahnchen: ['poulet', 'hahnchen'], huhnchen: ['poulet'], huhn: ['poulet', 'huhn'], chicken: ['poulet'],
+  nudeln: ['teigwaren', 'nudel'], spaghetti: ['teigwaren', 'spaghetti'], pasta: ['teigwaren', 'pasta'], makkaroni: ['teigwaren'],
+  pommes: ['frites', 'pommes'], sahne: ['vollrahm', 'halbrahm', 'schlagrahm', 'rahm'], schlagsahne: ['schlagrahm', 'vollrahm'], paprika: ['peperoni', 'paprika'],
+  mohre: ['karotte'], mohren: ['karotte'], karotten: ['karotte'], kartoffelbrei: ['kartoffelstock'], kartoffelpuree: ['kartoffelstock'],
+  wurstchen: ['wienerli', 'wurst'], croissant: ['gipfeli', 'croissant'], brotchen: ['brotli', 'brotchen', 'semmel'], semmel: ['brotli'],
+  marmelade: ['konfiture'], eis: ['glace', 'rahmglace'], speiseeis: ['glace'], ei: ['ei', 'huhnerei'], eier: ['ei', 'huhnerei'], doner: ['kebab', 'doner'], hack: ['gehacktes', 'hack'], hackfleisch: ['gehacktes', 'hackfleisch'],
+  pute: ['truthahn', 'pute'], putenbrust: ['truthahn', 'putenbrust'], walnuss: ['baumnuss', 'walnuss'], walnusse: ['baumnuss'],
+  kichererbsen: ['kichererbse'], linsen: ['linse'], bohnen: ['bohne'], erbsen: ['erbse'], zucchini: ['zucchetti', 'zucchini'],
+  pfannkuchen: ['omelette', 'pfannkuchen'], eierkuchen: ['omelette'], quark: ['quark'], magerquark: ['quark, nature, mager', 'magerquark'],
+  frikadelle: ['hacktatschli', 'frikadelle'], blumenkohl: ['blumenkohl'], rosenkohl: ['rosenkohl'], porree: ['lauch'], lauch: ['lauch'],
+  aprikose: ['aprikose'], pflaume: ['zwetschge', 'pflaume'], johannisbeere: ['johannisbeere'], schokolade: ['schokolade', 'schoggi'],
+  ketchup: ['tomatenketchup', 'ketchup'], mayo: ['mayonnaise'], milchreis: ['milchreis'], gummibarchen: ['gummibonbon', 'gummibarchen'],
+};
+
+/** Für die Suche: klein, ohne Akzente/Umlautpunkte, ß → ss. */
+export const norm = (t) => String(t).toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** Treffer-Punkte für einen Eintrag (0 = kein Treffer). Alle Suchwörter müssen passen. */
+function score(food, words) {
+  const name = norm(food.name);
+  const hay = food.syn ? `${name} ${norm(food.syn)}` : name;
+  const nameWords = name.split(/[^a-z0-9]+/).filter(Boolean);
+  let total = 0;
+  for (const w of words) {
+    // Übersetzungen zuerst (z. B. sahne → vollrahm), sonst das Wort selbst
+    const alts = SYN[w] ? [...SYN[w].filter((x) => x !== w), w] : [w];
+    let best = 0, matches = 0;
+    for (const [i, a] of alts.entries()) {
+      const pri = -i * 0.3; // frühere Übersetzung leicht bevorzugt
+      if (name.includes(a)) matches++;
+      if (nameWords[0] === a) best = Math.max(best, 9 + pri);
+      else if (nameWords.includes(a)) best = Math.max(best, 7 + pri);
+      else if (name.startsWith(a)) best = Math.max(best, 6 + pri);
+      else if (nameWords.some((x) => x.startsWith(a))) best = Math.max(best, 4 + pri);
+      else if (name.includes(a)) best = Math.max(best, 2 + pri);
+      else if (hay.includes(a)) best = Math.max(best, 1 + pri);
+    }
+    if (!best) return 0;
+    total += best + Math.max(0, matches - 1) * 1.6; // passt zu mehreren Begriffen (Pommes + Frites)
+  }
+  // Kurze, einfache Namen zuerst ("Broccoli, roh" vor "Broccoli-Gratin mit ...")
+  return total + Math.max(0, 3 - name.length / 25);
+}
+
+/** Durchsucht: eigene Gerichte, zuletzt gegessen, eingebaute Liste, große Datenbank. */
+export function searchFoods(q, { withMeals = true, limit = 40 } = {}) {
+  const words = norm(q).split(/[\s,]+/).filter(Boolean);
+  const own = withMeals ? data.meals.map(mealAsFood) : [];
+  const recent = recentFoods(20).filter((r) => !String(r.id).startsWith('m:') && !own.some((m) => m.name === r.name));
+  if (!words.length) return [...own, ...recent, ...FOODS.filter((f) => !recent.some((r) => r.name === f.name))].slice(0, limit);
+  const groups = [[own, 3], [recent, 2], [FOODS, 1.5], [chDb || [], 0]];
+  const seen = new Set();
+  const hits = [];
+  for (const [list, bonus] of groups) {
+    for (const f of list) {
+      if (seen.has(f.name)) continue;
+      const sc = score(f, words);
+      if (!sc) continue;
+      seen.add(f.name);
+      hits.push([sc + bonus, f]);
+    }
+  }
+  return hits.sort((a, b) => b[0] - a[0]).slice(0, limit).map(([, f]) => f);
 }

@@ -17,7 +17,7 @@ import { columnChart } from '../charts.js';
 import {
   JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood,
   entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterTarget, logWater, undoWater, fmtL,
-  meals, mealAsFood, mealTotals, saveMeal, deleteMeal,
+  meals, mealAsFood, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE,
 } from '../nutrition.js';
 import { ask } from '../app.js';
 
@@ -48,7 +48,7 @@ export const foodScreen = {
 
     const rows = list.map((x) => `<div class="list-row static food-row">
         <span class="lr-main"><span class="lr-title">${esc(x.name)}</span>
-          <span class="lr-sub">${x.g ? `${fmtBig(x.g)} g · ` : ''}P ${fmtNum(Math.round(x.p))} · KH ${fmtNum(Math.round(x.c || 0))} · F ${fmtNum(Math.round(x.f || 0))} · ${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
+          <span class="lr-sub">${x.g ? `${fmtBig(x.g)} ${x.ref?.liquid ? 'ml' : 'g'} · ` : ''}P ${fmtNum(Math.round(x.p))} · KH ${fmtNum(Math.round(x.c || 0))} · F ${fmtNum(Math.round(x.f || 0))} · ${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
         <span class="lr-value">${fmtBig(x.kcal)}<small> kcal</small></span>
         <button class="icon-btn sm" data-action="del" data-id="${esc(x.id)}" aria-label="Löschen">${ICON.x}</button></div>`).join('');
 
@@ -254,7 +254,7 @@ function openAddSheet() {
   let timer, ctrl;
   const list = () => {
     const item = (f, i) => `<button class="drink" data-action="pick" data-i="${i}"><span class="drink-name">${esc(f.name)}${f.meal ? ' <span class="uni-tag">Gericht</span>' : ''}</span>
-      <span class="drink-meta">${f.meal ? `<b>${fmtBig(f.kcal * f.portion / 100)}</b> kcal · ${fmtNum(Math.round(f.p * f.portion / 10) / 10)} g P <small>/Portion</small>` : `<b>${f.kcal}</b> kcal · ${fmtNum(f.p)} g P <small>/100 g</small>`}</span></button>`;
+      <span class="drink-meta">${f.meal ? `<b>${fmtBig(f.kcal * f.portion / 100)}</b> kcal · ${fmtNum(Math.round(f.p * f.portion / 10) / 10)} g P <small>/Portion</small>` : `<b>${f.kcal}</b> kcal · ${fmtNum(f.p)} g P <small>/100 ${f.liquid ? 'ml' : 'g'}</small>`}</span></button>`;
     return (results.length ? results.map((f, i) => item(f, i)).join('') : '')
       + (online.length ? `<div class="drinks-sep">Online (Open Food Facts)</div>${online.map((f, i) => item(f, results.length + i)).join('')}` : '')
       || '<p class="muted small pad">Nichts gefunden – unten „Schnell eintragen“ nutzen.</p>';
@@ -277,7 +277,8 @@ function openAddSheet() {
       <label class="field sm"><input id="qF" inputmode="decimal" placeholder="0"><span>g Fett</span></label>
     </div>
     <p class="note">Ohne kcal-Angabe rechnet die App aus den Makros: Protein und KH je 4 kcal/g, Fett 9 kcal/g.</p>
-    <div class="sheet-actions"><button class="btn big" data-action="quick">Eintragen</button></div>`, {
+    <div class="sheet-actions"><button class="btn big" data-action="quick">Eintragen</button></div>
+    <p class="source">Lebensmittel: eingebaute Liste und ${DB_SOURCE}. Markenprodukte: Open Food Facts (online).</p>`, {
     inputs: {
       q: (el) => {
         const q = el.value;
@@ -313,6 +314,8 @@ function openAddSheet() {
     scan: () => scanBarcode(),
   });
   setTimeout(() => document.getElementById('foodQ')?.focus(), 350);
+  // Große Datenbank im Hintergrund laden; ist schon gesucht worden, Ergebnis auffrischen
+  if (!foodDbReady()) loadFoodDb().then(() => { const q = document.getElementById('foodQ'); if (q?.value.trim()) { results = searchLocal(q.value); redraw(); } });
 }
 
 function openAmountSheet(food) {
@@ -322,8 +325,8 @@ function openAmountSheet(food) {
   const chips = [[food.portion, `1 ${food.unit || 'Portion'}`], [food.portion * 2, `2 ${food.unit || 'Portionen'}`], [100, '100 g']]
     .filter(([g], i, a) => g && a.findIndex(([x]) => x === g) === i);
   openSheet(`<h2 class="sheet-title">${esc(food.name)}</h2>
-    <p class="muted small sheet-sub">${food.meal ? `Ganzes Gericht ${fmtBig(food.totalG)} g · 1 Portion = ${fmtBig(food.portion)} g · ` : ''}Je 100 g: ${food.kcal} kcal · ${fmtNum(food.p)} g Protein${food.fib ? ` · ${fmtNum(food.fib)} g Ballaststoffe` : ''}</p>
-    <label class="field amount"><input id="aG" inputmode="decimal" value="${start}" data-input="g" data-enter="log"><span>g</span></label>
+    <p class="muted small sheet-sub">${food.meal ? `Ganzes Gericht ${fmtBig(food.totalG)} g · 1 Portion = ${fmtBig(food.portion)} g · ` : ''}Je 100 ${food.liquid ? 'ml' : 'g'}: ${food.kcal} kcal · ${fmtNum(food.p)} g Protein${food.fib ? ` · ${fmtNum(food.fib)} g Ballaststoffe` : ''}</p>
+    <label class="field amount"><input id="aG" inputmode="decimal" value="${start}" data-input="g" data-enter="log"><span>${food.liquid ? 'ml' : 'g'}</span></label>
     <div class="chips amount-chips">${chips.map(([g, l]) => `<button class="chip" data-action="setG" data-g="${g}">${l}</button>`).join('')}</div>
     <p class="amount-calc" id="aCalc">${calc(start)}</p>
     <div class="sheet-actions"><button class="btn primary big" data-action="log">Eintragen</button>
@@ -338,7 +341,7 @@ function openAmountSheet(food) {
     setG: (el) => { document.getElementById('aG').value = el.dataset.g; document.getElementById('aCalc').innerHTML = calc(+el.dataset.g); },
     log: () => {
       const g = parseNum(document.getElementById('aG').value);
-      if (!g || Number.isNaN(g) || g > 5000) return toast('Menge in Gramm eingeben');
+      if (!g || Number.isNaN(g) || g > 5000) return toast(food.liquid ? 'Menge in ml eingeben' : 'Menge in Gramm eingeben');
       const e = logFood(food, g);
       closeSheet();
       toast(`${food.name}: ${e.kcal} kcal eingetragen`);
@@ -388,6 +391,7 @@ function openMealBuilder(meal = null) {
     <p class="muted small" id="mState" style="margin:6px 2px 0"></p>
     <div class="drinks food-res" id="mRes"></div>
     <div class="sheet-actions" style="margin-top:16px"><button class="btn primary big" data-action="saveMeal">Gericht speichern</button></div>`, {
+    // (Datenbank wird unten nachgeladen)
     inputs: {
       mname: (el) => { st.name = el.value; },
       mg: (el) => {
@@ -437,6 +441,7 @@ function openMealBuilder(meal = null) {
       render();
     },
   });
+  if (!foodDbReady()) loadFoodDb();
 }
 
 // ---------- Barcode (Android/Chrome: BarcodeDetector) ----------
