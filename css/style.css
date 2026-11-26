@@ -998,3 +998,15 @@ button.hist-row .chev { grid-column: 2; grid-row: 1 / span 2; color: var(--muted
 @keyframes scanline { from { transform: translateY(-38px); } to { transform: translateY(38px); } }
 @media (prefers-reduced-motion: reduce) { .scan-line { animation: none; } }
 .scan-type { position: absolute; bottom: calc(110px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, .18); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+
+/* ---------- Neuheiten ---------- */
+.tab-dot { position: absolute; top: 7px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 2px rgba(15, 21, 25, .9); }
+.news-count { font-size: 0.765rem; font-weight: 700; color: #fff; background: #e5484d; padding: 2px 8px; border-radius: 999px; }
+.news-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.news-row { display: flex; flex-direction: column; gap: 2px; padding: 11px 0; border-top: 0.5px solid var(--separator); }
+.news-row:first-child { border-top: 0; padding-top: 4px; }
+.news-title { font-weight: 650; display: flex; align-items: center; gap: 7px; }
+.news-new { font-style: normal; font-size: 0.68rem; font-weight: 700; color: #fff; background: #e5484d; padding: 1px 6px; border-radius: 5px; }
+.news-text { font-size: 0.85rem; color: var(--muted); line-height: 1.35; }
+.news-where { display: inline-flex; align-items: center; gap: 3px; font-size: 0.8rem; font-weight: 600; color: var(--accent); margin-top: 2px; }
+.news-where svg { width: 14px; height: 14px; }

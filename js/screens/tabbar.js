@@ -4,6 +4,7 @@
 // =============================================================
 
 import { ICON } from './icons.js';
+import { hasUnseen } from '../news.js';
 
 const TABS = [
   ['home', 'Training', ICON.dumbbell],
@@ -16,5 +17,5 @@ const TABS = [
 export function tabBar(current) {
   return `<nav class="tabbar" aria-label="Bereiche">${TABS.map(([k, label, icon]) =>
     `<button class="tab${k === current ? ' on' : ''}" data-action="tab" data-tab="${k}" ${k === current ? 'aria-current="page"' : ''}>
-      ${icon}<span>${label}</span></button>`).join('')}</nav>`;
+      ${icon}<span>${label}</span>${k === 'settings' && hasUnseen() ? '<i class="tab-dot" aria-label="Neuheiten"></i>' : ''}</button>`).join('')}</nav>`;
 }

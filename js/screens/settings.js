@@ -12,6 +12,20 @@ import { muscleNames } from '../exercises.js';
 import { discardActive } from './workout.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
+import { NEWS, unseen, markSeen } from '../news.js';
+
+/** Neuheiten: eine Zeile pro Funktion – was sie macht und wo man sie findet. */
+function newsCard() {
+  const fresh = new Set(unseen().map((n) => n.id));
+  const rows = NEWS.map((n) => `<li class="news-row${fresh.has(n.id) ? ' fresh' : ''}">
+      <span class="news-title">${fresh.has(n.id) ? '<i class="news-new">Neu</i>' : ''}${esc(n.title)}</span>
+      <span class="news-text">${esc(n.text)}</span>
+      <span class="news-where">${ICON.chev}${esc(n.where)}</span></li>`).join('');
+  return `<section class="card news-card" id="news">
+    <div class="card-head"><h2>Neuheiten</h2>${fresh.size ? `<span class="news-count">${fresh.size} neu</span>` : ''}</div>
+    <ul class="news-list">${rows}</ul>
+  </section>`;
+}
 
 export const settingsScreen = {
   render() {
@@ -23,6 +37,8 @@ export const settingsScreen = {
 
     return `
       <main class="content no-title has-tabbar">
+        ${newsCard()}
+
         <section class="card">
           <h3 class="section-title first">Datensicherung</h3>
           <p class="muted small">Automatisch: jeden Tag ein Schnappschuss auf diesem iPhone, die letzten 14 Tage bleiben erhalten.</p>
@@ -73,6 +89,9 @@ export const settingsScreen = {
   },
 
   after(root) {
+    // Neuheiten gelten als gelesen, sobald man sie gesehen hat (Markierung „Neu“ bleibt bis zum nächsten Öffnen)
+    markSeen();
+    document.querySelector('.tab-dot')?.remove();
     root.querySelector('#importFile').addEventListener('change', onImport);
     fillSnapshots(root);
   },
