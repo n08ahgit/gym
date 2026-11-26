@@ -29,6 +29,7 @@ import { showRecord } from '../record.js';
 import { autoBackup } from '../backup.js';
 import { openExerciseInfo, openPlates } from './exinfo.js';
 import { scheduleRestPush, cancelRestPush } from '../push.js';
+import { openSetEditor } from './setedit.js';
 
 let active = loadActive();
 
@@ -168,55 +169,20 @@ function backOneSet() {
 /** Wert eines Satzes ändern (Fenster). Funktioniert für alle schon eingetragenen Sätze. */
 function openEditSet(exIdx, setIdx) {
   const it = active.items[exIdx];
-  const old = it.results[setIdx];
-  if (!it || !old) return;
-  const u = exUnit(it.exId);
-  const done = old.status === 'done';
-  const repField = (id, label, v, enter) => `<label class="field${it.uni ? ' side' : ''}"><input id="${id}" inputmode="numeric" pattern="[0-9]*" value="${v != null ? fmtNum(v) : ''}" placeholder="0" autocomplete="off" data-enter="${enter}"><span>${label}</span></label>`;
-  openSheet(`<h2 class="sheet-title">${esc(it.name)}</h2>
-    <p class="muted small sheet-sub">Satz ${setIdx + 1} ${done ? 'ändern' : '(übersprungen) nachtragen'}</p>
-    <div class="inputs edit-inputs${it.uni ? ' uni' : ''}">
-      <label class="field"><input id="edW" inputmode="decimal" value="${done && old.w != null ? fmtWU(old.w, u, false) : ''}" placeholder="0" autocomplete="off" data-enter="saveEdit"><span>${u}</span></label>
-      ${it.uni ? repField('edRL', 'Links', done ? old.rl ?? old.r : null, 'saveEdit') + repField('edRR', 'Rechts', done ? old.rr ?? old.r : null, 'saveEdit')
-        : repField('edR', 'Wdh', done ? old.r : null, 'saveEdit')}
-    </div>
-    <div class="sheet-actions">
-      <button class="btn primary big" data-action="saveEdit">Speichern</button>
-      ${done ? '<button class="btn ghost big danger" data-action="skipEdit">Als übersprungen markieren</button>' : ''}
-      <button class="btn ghost big" data-action="closeSheet">Abbrechen</button>
-    </div>`, {
-    saveEdit: () => {
-      const num = (id) => parseNum(document.getElementById(id)?.value);
-      const w = fromU(num('edW'), u);
-      let r, sides = null;
-      if (it.uni) {
-        const rl = num('edRL'), rr = num('edRR');
-        if ([rl, rr].some((x) => Number.isNaN(x) || (x !== null && !Number.isInteger(x)))) return toast('Wiederholungen bitte als ganze Zahlen');
-        sides = [rl ?? rr ?? null, rr ?? rl ?? null];
-        r = sides[0] == null ? null : Math.min(sides[0], sides[1]);
-      } else {
-        r = num('edR');
-        if (Number.isNaN(r) || (r !== null && !Number.isInteger(r))) return toast('Wiederholungen bitte als ganze Zahl');
-      }
-      if (Number.isNaN(w)) return toast('Bitte gültige Zahlen eingeben');
-      if (w == null && r == null) return toast('Gewicht oder Wiederholungen eintragen');
-      const others = it.results.filter((_, i) => i !== setIdx);
-      const rec = checkRecord(it.exId, w, r, others);
-      it.results[setIdx] = { w, r, ...(w != null ? { u } : {}), ...(sides ? { rl: sides[0], rr: sides[1] } : {}), status: 'done', ...(rec ? { pr: 1 } : {}) };
+  const old = it?.results[setIdx];
+  if (!old) return;
+  openSetEditor({
+    title: it.name,
+    sub: `Satz ${setIdx + 1} ${old.status === 'done' ? 'ändern' : '(übersprungen) nachtragen'}`,
+    uni: it.uni, u: exUnit(it.exId), set: old,
+    onSave: (ns) => {
+      const rec = checkRecord(it.exId, ns.w, ns.r, it.results.filter((_, i) => i !== setIdx));
+      it.results[setIdx] = { ...ns, ...(rec ? { pr: 1 } : {}) };
       persist();
-      closeSheet();
       render();
-      toast('Satz geändert');
     },
-    skipEdit: () => {
-      it.results[setIdx] = { w: null, r: null, status: 'skipped' };
-      persist();
-      closeSheet();
-      render();
-      toast('Als übersprungen markiert');
-    },
+    onSkip: () => { it.results[setIdx] = { w: null, r: null, status: 'skipped' }; persist(); render(); },
   });
-  setTimeout(() => document.getElementById('edW')?.focus(), 350);
 }
 
 /** Antippbare Satz-Chips (zum Ändern). */

@@ -25,6 +25,8 @@
 //   food: [ { id, t, date, name, g, kcal, p, c, f, ref } ], // Kalorien-Tracker
 //   water: [ { id, t, date, ml } ],
 //   meals: [ { id, name, servings, items: [ { food (Werte je 100 g), g } ] } ],  // eigene Gerichte
+//   supps: [ { id, name, dose, time: 'HH:MM', rep: { type: 'daily'|'days'|'every'|'once', days, n, start }, hint, nag } ],
+//   suppDone: { 'YYYY-MM-DD': [ids] },             // abgehakte Supplements
 //   nutrition: { sex, age, height, weight, bodyFat?, job, steps?, trainDays, trainMin, sport, sportHours, level, goal, targetWeight?, targetDate?, kcal?, adjust? },
 //   settings: { bar: 20, unit: 'kg'|'lb', exUnit: { exId: 'kg'|'lb' }, removed: [codes] }
 //   Sätze speichern w immer in kg, dazu u = Einheit, in der eingegeben wurde.           // Stangengewicht, entfernte Freunde
@@ -46,7 +48,7 @@ const ACTIVE_KEY = 'gym.active.v1';
 export const SCHEMA = 1;
 
 function emptyData() {
-  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], water: [], meals: [], nutrition: {}, settings: { bar: 20 } };
+  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], water: [], meals: [], supps: [], suppDone: {}, nutrition: {}, settings: { bar: 20 } };
 }
 
 /** Bringt (auch importierte) Daten in eine saubere, gültige Form. */
@@ -80,6 +82,12 @@ export function normalize(d) {
   if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
   if (Array.isArray(d.food)) out.food = d.food.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.kcal >= 0 && x.kcal < 20000);
   if (Array.isArray(d.meals)) out.meals = d.meals.filter((m) => m && m.id && m.name && Array.isArray(m.items) && m.items.length);
+  if (Array.isArray(d.supps)) out.supps = d.supps.filter((x) => x && x.id && x.name && /^\d{2}:\d{2}$/.test(x.time)).slice(0, 30);
+  if (d.suppDone && typeof d.suppDone === 'object') {
+    // nur die letzten 60 Tage behalten
+    const cut = dateStr(new Date(Date.now() - 60 * 864e5));
+    for (const [k, v] of Object.entries(d.suppDone)) if (k >= cut && Array.isArray(v)) out.suppDone[k] = v;
+  }
   if (Array.isArray(d.water)) out.water = d.water.filter((x) => x && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.ml > 0 && x.ml < 5000);
   if (d.nutrition && typeof d.nutrition === 'object') out.nutrition = { ...d.nutrition };
   if (Array.isArray(d.drinks)) out.drinks = d.drinks.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.mg >= 0 && x.mg < 2000);
@@ -226,6 +234,20 @@ function commitPlan(days, cycle = currentCycle()) {
 export function addSession(s) {
   data.sessions.push(s);
   data.sessions.sort((a, b) => a.start - b.start);
+  save();
+}
+
+/** Gespeichertes Workout ändern (z. B. Tippfehler) bzw. löschen. */
+export function updateSession(id, fn) {
+  const s = data.sessions.find((x) => x.id === id);
+  if (!s) return null;
+  fn(s);
+  data.sessions.sort((a, b) => a.start - b.start);
+  save();
+  return s;
+}
+export function deleteSession(id) {
+  data.sessions = data.sessions.filter((x) => x.id !== id);
   save();
 }
 

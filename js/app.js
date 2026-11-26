@@ -22,6 +22,7 @@ import { progressScreen, exstatScreen } from './screens/progress.js';
 import { friendsScreen, addFromCode } from './screens/friends.js';
 import { yearScreen } from './screens/yearview.js';
 import { foodScreen } from './screens/food.js';
+import { sessionScreen } from './screens/sessionedit.js';
 import { autoBackup, requestPersist } from './backup.js';
 
 const screens = {
@@ -36,6 +37,7 @@ const screens = {
   friends: friendsScreen,
   year: yearScreen,
   food: foodScreen,
+  session: sessionScreen,
 };
 
 /** Aktionen, die auf jedem Screen gelten (z. B. Tab-Leiste). */
@@ -56,7 +58,7 @@ let modalActions = null;
 
 /** Tiefe je Screen. Tabs (Tiefe 0) blenden über; tiefer = öffnet sich aus dem
  *  angetippten Element, flacher = schrumpft dorthin zurück. */
-const DEPTH = { home: 0, progress: 0, food: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, search: 2, custom: 3 };
+const DEPTH = { home: 0, progress: 0, food: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, session: 2, search: 2, custom: 3 };
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 let skipNextTransition = false;
 
@@ -563,6 +565,21 @@ import('./friends.js').then(async (f) => {
   f.refreshFriends(); // alte Freunde umstellen, gegenseitig hinzufügen, Stände holen
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') f.publishMe(); });
 });
+
+// Supplement-Erinnerungen: Server aktuell halten, am Handy Abgehaktes übernehmen
+import('./supps.js').then((sp) => {
+  if (!sp.supps().length) return;
+  sp.syncSupps();
+  const pull = () => sp.pullSuppDone().then((ch) => { if (ch && ui.screen === 'food') render(); });
+  pull();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+});
+// Mitteilung „Kreatin nehmen“ angetippt → Ernährung öffnen
+if (qs.get('tab') === 'food' && !hasActive()) {
+  startScreen = 'food';
+  history.replaceState(null, '', location.pathname + '?app');
+}
+navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.go === 'food' && !hasActive()) go('food'); });
 
 // Läuft ein Workout, direkt dorthin (z. B. nach Schließen der App)
 go(startScreen);

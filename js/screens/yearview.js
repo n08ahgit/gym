@@ -6,7 +6,7 @@
 // =============================================================
 
 import { go, render, ui, openSheet } from '../app.js';
-import { data, sessionsByDate, planVersionFor, currentVersion, plannedOf } from '../store.js';
+import { data, sessionsByDate, planVersionFor, currentVersion, plannedOf, exUnit } from '../store.js';
 import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, fmtNum, fmtBig, esc, setVol, fmtSet, fmtVol } from '../util.js';
 import { dayStatus } from '../year.js';
 import { ICON } from './icons.js';
@@ -105,7 +105,8 @@ function openDay(ds) {
       const vol = done.reduce((a, e) => a + e.sets.reduce((b, x) => b + setVol(x), 0), 0);
       const n = done.reduce((a, e) => a + e.sets.length, 0);
       return `<p class="muted small sheet-sub">${esc(s.workoutName)} · ${fmtDurationLong(s.end - s.start)} · ${n} Sätze · ${fmtVol(vol)}</p>
-        <ul class="sheet-list">${done.map((e) => `<li><span>${esc(e.name)}</span><span class="muted">${e.sets.map((x) => fmtSet(x, '×')).join(' · ')}</span></li>`).join('')}</ul>`;
+        <ul class="sheet-list">${done.map((e) => `<li><span>${esc(e.name)}</span><span class="muted">${e.sets.map((x) => fmtSet(x, '×', exUnit(e.exId))).join(' · ')}</span></li>`).join('')}</ul>
+        <button class="btn big full se-open" data-action="editSession" data-id="${esc(s.id)}">${ICON.edit} Workout bearbeiten</button>`;
     }).join('');
   } else {
     const w = plannedOf(st === 'future' ? currentVersion() : planVersionFor(ds), ds);
@@ -119,5 +120,7 @@ function openDay(ds) {
     body = `<p class="muted">${text}</p>`;
   }
   openSheet(`<h2 class="sheet-title">${WEEKDAYS[wd]}, ${parseDate(ds).getDate()}. ${MONTHS[parseDate(ds).getMonth()]}</h2>
-    <p class="ym-status s-${st}-text">${LABEL[st]}</p>${body}`);
+    <p class="ym-status s-${st}-text">${LABEL[st]}</p>${body}`, {
+    editSession: (el) => go('session', { id: el.dataset.id, back: { screen: 'year', params: { year: ui.params.year, sel: ds } } }),
+  });
 }

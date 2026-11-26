@@ -72,6 +72,10 @@ export const homeScreen = {
     // Kästchen oder Jahreszahl antippen → große Jahresansicht (Tag vorausgewählt)
     dayInfo: (el) => go('year', { year: ui.params.year || new Date().getFullYear(), sel: el.dataset.date }),
     openYear: () => go('year', { year: ui.params.year || new Date().getFullYear() }),
+    editToday: () => {
+      const s = sessionsByDate().get(dateStr())?.at(-1);
+      if (s) go('session', { id: s.id, back: { screen: 'home', params: {} } });
+    },
     // Große Pfeile neben der Info: Tag für Tag durchgehen (die Kästchen
     // selbst sind kleiner als die empfohlene Tippfläche)
     dayStep: (el) => {
@@ -159,7 +163,8 @@ function todayCard(plan, tIdx, doneToday, active) {
     return `<section class="card today-card">
       <h2 class="today-title">${esc(w.name)}</h2>
       <p class="muted small">Heute · ${w.exercises.length} Übungen · ${sets} Sätze${doneToday ? ' · heute schon erledigt' : ''}</p>
-      <button class="btn ${doneToday ? '' : 'primary '}big" data-action="startToday">${ICON.play} ${doneToday ? 'Nochmal starten' : 'Workout starten'}</button></section>`;
+      <button class="btn ${doneToday ? '' : 'primary '}big" data-action="startToday">${ICON.play} ${doneToday ? 'Nochmal starten' : 'Workout starten'}</button>
+      ${doneToday ? `<button class="text-btn muted today-edit" data-action="editToday">${ICON.edit} Heutiges Workout bearbeiten</button>` : ''}</section>`;
   }
   // Pausetag: nächstes geplantes Training zeigen (funktioniert für Woche und Rhythmus)
   let next = null;

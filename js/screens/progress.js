@@ -195,9 +195,9 @@ export const exstatScreen = {
       chart = lineChart(pts) + `<div class="axis-dates"><span>${shortDate(valid[0].date)}</span><span>${shortDate(valid[valid.length - 1].date)}</span></div>`;
     }
 
-    const hist = rows.slice().reverse().map((r) => `<div class="hist-row">
+    const hist = rows.slice().reverse().map((r) => `<button class="hist-row" data-action="session" data-id="${esc(r.id)}" aria-label="Training vom ${fmtDateLong(r.date)} bearbeiten">
       <span class="hist-date">${fmtDateLong(r.date)}</span>
-      <span class="hist-sets">${r.sets.map((s) => fmtSet(s, '×', u)).join(' · ')}</span></div>`).join('');
+      <span class="hist-sets">${r.sets.map((s) => fmtSet(s, '×', u)).join(' · ')}</span><span class="chev">${ICON.chev}</span></button>`).join('');
 
     return `<header class="topbar">
         <button class="glass-circle" data-action="back" aria-label="Zurück">${ICON.back}</button>
@@ -221,6 +221,7 @@ export const exstatScreen = {
 
   actions: {
     back: () => go('progress', { range: ui.params.range, more: ui.params.more }),
+    session: (el) => go('session', { id: el.dataset.id, back: { screen: 'exstat', params: { ...ui.params } } }),
   },
 };
 

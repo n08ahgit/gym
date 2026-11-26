@@ -20,6 +20,7 @@ import {
   meals, mealAsFood, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE,
 } from '../nutrition.js';
 import { ask } from '../app.js';
+import { suppCard, suppActions } from './suppui.js';
 
 const bar = (val, max, cls = '') => `<div class="nbar ${cls}${val > max * 1.05 ? ' over' : ''}"><i style="width:${Math.min(100, max ? (val / max) * 100 : 0)}%"></i></div>`;
 
@@ -36,7 +37,7 @@ const scoreColor = (s) => (s >= 80 ? '#5f9f72' : s >= 65 ? '#8fb06a' : s >= 45 ?
 export const foodScreen = {
   render(params) {
     const t = targets();
-    if (!t) return `<main class="content no-title has-tabbar food">${setupIntro()}</main>${tabBar('food')}`;
+    if (!t) return `<main class="content no-title has-tabbar food">${setupIntro()}${suppCard()}</main>${tabBar('food')}`;
     const today = dateStr();
     const ds = params.date || today;
     const list = entriesOf(ds).slice().sort((a, b) => a.t - b.t);
@@ -92,6 +93,8 @@ export const foodScreen = {
         </div>
       </section>
 
+      ${suppCard(ds)}
+
       ${list.length ? `<section class="card list-card"><div class="card-head"><h2>${dayName === 'Heute' ? 'Heute gegessen' : 'Gegessen'}</h2><span class="muted small">${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'}</span></div>${rows}</section>` : ''}
 
       ${goalCard(t)}
@@ -105,6 +108,7 @@ export const foodScreen = {
   },
 
   actions: {
+    ...suppActions,
     setup: () => openGoalSheet(),
     goal: () => openGoalSheet(),
     add: () => openAddSheet(),

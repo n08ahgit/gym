@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v51';
+const CACHE = 'gym-v52';
 
 const FILES = [
   './',
@@ -76,6 +76,10 @@ const FILES = [
   './js/screens/home.js',
   './js/screens/plan.js',
   './js/screens/workout.js',
+  './js/supps.js',
+  './js/screens/suppui.js',
+  './js/screens/sessionedit.js',
+  './js/screens/setedit.js',
   './js/screens/settings.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -121,14 +125,28 @@ self.addEventListener('push', (e) => {
     renotify: true,
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
+    // Supplement: auf Android direkt abhaken (iPhone zeigt keine Knöpfe)
+    ...(d.supp ? { data: { supp: d.supp, server: d.server }, actions: [{ action: 'done', title: 'Erledigt ✓' }] } : {}),
   }));
 });
 
 // Antippen der Mitteilung → App öffnen bzw. nach vorne holen
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  const sd = e.notification.data;
+  if (e.action === 'done' && sd?.supp && sd.server) {
+    e.waitUntil(self.registration.pushManager.getSubscription().then((sub) => sub && fetch(sd.server + '/supp/done', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: sub.endpoint, date: sd.supp.date, id: sd.supp.id, done: true }),
+    })).catch(() => {}));
+    return;
+  }
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
     const c = list.find((w) => 'focus' in w);
+    if (sd?.supp) {
+      if (c) { c.postMessage({ go: 'food' }); return c.focus(); }
+      return self.clients.openWindow('./?app&tab=food');
+    }
     return c ? c.focus() : self.clients.openWindow('./');
   }));
 });

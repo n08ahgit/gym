@@ -124,7 +124,7 @@ export function exerciseHistory(exId) {
     if (!sets.length) continue;
     const valid = sets.filter((x) => x.w && x.r);
     const best = valid.length ? valid.reduce((a, b) => (e1rm(b.w, b.r) > e1rm(a.w, a.r) ? b : a)) : null;
-    rows.push({ date: s.date, sets, best, value: best ? e1rm(best.w, best.r) : 0, volume: sets.reduce((n, x) => n + setVol(x), 0) });
+    rows.push({ id: s.id, date: s.date, sets, best, value: best ? e1rm(best.w, best.r) : 0, volume: sets.reduce((n, x) => n + setVol(x), 0) });
   }
   return rows;
 }
