@@ -64,7 +64,9 @@ export const homeScreen = {
     resume: () => go('workout'),
     yearPrev: () => { ui.params.year = (ui.params.year || new Date().getFullYear()) - 1; render(); },
     yearNext: () => { ui.params.year = (ui.params.year || new Date().getFullYear()) + 1; render(); },
-    dayInfo: (el) => selectDay(el.dataset.date),
+    // Kästchen oder Jahreszahl antippen → große Jahresansicht (Tag vorausgewählt)
+    dayInfo: (el) => go('year', { year: ui.params.year || new Date().getFullYear(), sel: el.dataset.date }),
+    openYear: () => go('year', { year: ui.params.year || new Date().getFullYear() }),
     // Große Pfeile neben der Info: Tag für Tag durchgehen (die Kästchen
     // selbst sind kleiner als die empfohlene Tippfläche)
     dayStep: (el) => {

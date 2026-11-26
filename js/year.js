@@ -66,7 +66,7 @@ export function renderYear(year) {
   return `
     <div class="year-head">
       <button class="icon-btn sm" data-action="yearPrev" ${year <= firstYear ? 'disabled' : ''} aria-label="Vorjahr">${ICON.chevL}</button>
-      <span><b>${year}</b> · ${count} ${count === 1 ? 'Training' : 'Trainings'}</span>
+      <button class="year-open" data-action="openYear"><b>${year}</b> · ${count} ${count === 1 ? 'Training' : 'Trainings'} ${ICON.chev}</button>
       <button class="icon-btn sm" data-action="yearNext" ${year >= thisYear ? 'disabled' : ''} aria-label="Nächstes Jahr">${ICON.chevR}</button>
     </div>
     <div class="year-scroll" data-today-col="${todayCol}">

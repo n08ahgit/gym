@@ -20,6 +20,7 @@ import { workoutScreen, workoutTick, hasActive } from './screens/workout.js';
 import { settingsScreen } from './screens/settings.js';
 import { progressScreen, exstatScreen } from './screens/progress.js';
 import { friendsScreen, addFromCode } from './screens/friends.js';
+import { yearScreen } from './screens/yearview.js';
 import { autoBackup, requestPersist } from './backup.js';
 
 const screens = {
@@ -32,6 +33,7 @@ const screens = {
   progress: progressScreen,
   exstat: exstatScreen,
   friends: friendsScreen,
+  year: yearScreen,
 };
 
 /** Aktionen, die auf jedem Screen gelten (z. B. Tab-Leiste). */
@@ -52,7 +54,7 @@ let modalActions = null;
 
 /** Tiefe je Screen. Tabs (Tiefe 0) blenden über; tiefer = öffnet sich aus dem
  *  angetippten Element, flacher = schrumpft dorthin zurück. */
-const DEPTH = { home: 0, progress: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, search: 2, custom: 3 };
+const DEPTH = { home: 0, progress: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, search: 2, custom: 3 };
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 let skipNextTransition = false;
 
@@ -310,7 +312,7 @@ document.addEventListener('keydown', (e) => {
 
 // ---------- Vom linken Rand wischen = zurück (wie in iOS-Apps) ----------
 // Folgt dem Finger 1:1; zurück bei genug Weg oder Schwung, sonst federt es zurück.
-const BACK_ACTION = { edit: 'back', search: 'back', custom: 'back', exstat: 'back', workout: 'home' };
+const BACK_ACTION = { edit: 'back', search: 'back', custom: 'back', exstat: 'back', year: 'back', workout: 'home' };
 let edge = null;
 document.addEventListener('touchstart', (e) => {
   const t = e.touches[0];
