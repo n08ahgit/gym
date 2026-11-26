@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v54';
+const CACHE = 'gym-v55';
 
 const FILES = [
   './',
@@ -126,6 +126,8 @@ self.addEventListener('push', (e) => {
     renotify: true,
     icon: './icons/icon-192.png',
     badge: './icons/icon-192.png',
+    vibrate: [200, 100, 200], // Android (iPhone vibriert nach Systemeinstellung)
+    timestamp: Date.now(),
     // Supplement: auf Android direkt abhaken (iPhone zeigt keine Knöpfe)
     ...(d.supp ? { data: { supp: d.supp, server: d.server }, actions: [{ action: 'done', title: 'Erledigt ✓' }] } : {}),
   }));
