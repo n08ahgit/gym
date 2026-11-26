@@ -524,8 +524,9 @@ window.addEventListener('hashchange', () => {
 });
 
 // Eigenen Stand für Freunde aktuell halten (wenn ein Name gesetzt ist)
-import('./friends.js').then((f) => {
-  f.publishMe();
+import('./friends.js').then(async (f) => {
+  await f.publishMe();
+  f.refreshFriends(); // alte Freunde umstellen, gegenseitig hinzufügen, Stände holen
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') f.publishMe(); });
 });
 

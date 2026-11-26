@@ -131,7 +131,7 @@ export async function publishMe(force = false) {
   try {
     const res = await fetch(`${API}/friend/publish`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
-      body: JSON.stringify({ code: data.profile.code, key: data.profile.key, name: data.profile.name, stats: myStats() }),
+      body: JSON.stringify({ code: data.profile.code, key: data.profile.key, name: data.profile.name, stats: myStats(), pid: data.profile.id }),
     });
     // Einmal pro Sitzung: allen Freunden mitteilen, dass ich sie habe (→ sie bekommen mich automatisch)
     if (res.ok && !linkedOnce) { linkedOnce = true; data.friends.filter((f) => f.code).forEach((f) => linkTo(f.code)); }
@@ -158,8 +158,35 @@ export function parseShort(input) {
 }
 
 /** Stand aller Freunde mit Code neu laden. Rückgabe: true, wenn sich etwas geändert hat. */
+/**
+ * Alte Freunde (per langem Link hinzugefügt, ohne Code) auf Codes umstellen:
+ * Server kennt Geräte-Kennung → Code. Danach automatisch und gegenseitig.
+ */
+async function upgradeOldFriends() {
+  const old = data.friends.filter((f) => !f.code && f.id && !String(f.id).startsWith('demo'));
+  if (!old.length || !API || window.GYM_DEMO) return false;
+  let changed = false;
+  for (const f of old) {
+    try {
+      const r = await fetch(`${API}/friend/byid/${encodeURIComponent(f.id)}`);
+      if (!r.ok) continue;
+      const { code } = await r.json();
+      if (!code || code === data.profile.code) continue;
+      const n = await fetchFriend(code);
+      // Doppelte vermeiden (falls schon per Code vorhanden)
+      data.friends = data.friends.filter((x) => x !== f && x.code !== code);
+      data.friends.push(n);
+      linkTo(code);
+      changed = true;
+    } catch { /* Freund hat noch keine neue Version – später nochmal */ }
+  }
+  if (changed) save();
+  return changed;
+}
+
 export async function refreshFriends() {
-  let changed = (await syncInbox()).length > 0;
+  let changed = await upgradeOldFriends();
+  changed = (await syncInbox()).length > 0 || changed;
   await Promise.all(data.friends.filter((f) => f.code).map(async (f) => {
     try {
       const n = await fetchFriend(f.code);
