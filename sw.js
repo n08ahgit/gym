@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v52';
+const CACHE = 'gym-v53';
 
 const FILES = [
   './',

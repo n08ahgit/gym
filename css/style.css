@@ -983,3 +983,18 @@ button.hist-row { width: 100%; text-align: left; display: grid; grid-template-co
 button.hist-row .hist-date, button.hist-row .hist-sets { grid-column: 1; }
 button.hist-row .chev { grid-column: 2; grid-row: 1 / span 2; color: var(--muted); }
 .today-edit { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; align-self: center; }
+
+/* ---------- Eigene Lebensmittel / Scanner ---------- */
+.own-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.own-btns .btn.dashed { margin-top: 12px; font-size: 0.85rem; padding: 0 8px; }
+.uni-tag.mine { background: rgba(95, 159, 114, .18); color: #8fc79f; }
+.uni-tag.shared { background: rgba(127, 169, 207, .18); color: var(--freeze); }
+.nf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nf-grid .gfield input { font-size: 1.1rem; }
+.nf-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.nf-opts .seg-item { padding: 0 10px; font-size: 0.8rem; }
+.nf-opts .chip { min-height: 38px; }
+.scan-line { position: absolute; left: 8%; right: 8%; top: 50%; height: 2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 12px var(--accent); animation: scanline 1.6s ease-in-out infinite alternate; }
+@keyframes scanline { from { transform: translateY(-38px); } to { transform: translateY(38px); } }
+@media (prefers-reduced-motion: reduce) { .scan-line { animation: none; } }
+.scan-type { position: absolute; bottom: calc(110px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); background: rgba(255, 255, 255, .18); color: #fff; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }

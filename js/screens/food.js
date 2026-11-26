@@ -6,7 +6,8 @@
 // Dann Einträge, Ziel (mit Zielgewicht/Datum, gemessenem Bedarf und
 // Warnungen) und 7-Tage-Verlauf. Eintragen: Suche (eingebaute Liste,
 // zuletzt gegessen, Open Food Facts), Menge wählen; Schnelleintrag mit
-// kcal/Protein/KH/Fett; Android: Barcode scannen.
+// kcal/Protein/KH/Fett; Barcode scannen (Android eingebaut, iPhone über ZXing).
+// Eigene Lebensmittel: selbst angelegt = nur für dich; mit Barcode = für alle.
 // =============================================================
 
 import { render, ui, openSheet, closeSheet, toast } from '../app.js';
@@ -18,6 +19,7 @@ import {
   JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood,
   entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterTarget, logWater, undoWater, fmtL,
   meals, mealAsFood, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE,
+  myFoods, saveMyFood, deleteMyFood, checkFood, communityAdd,
 } from '../nutrition.js';
 import { ask } from '../app.js';
 import { suppCard, suppActions } from './suppui.js';
@@ -257,20 +259,24 @@ function openAddSheet() {
   let online = [];
   let timer, ctrl;
   const list = () => {
-    const item = (f, i) => `<button class="drink" data-action="pick" data-i="${i}"><span class="drink-name">${esc(f.name)}${f.meal ? ' <span class="uni-tag">Gericht</span>' : ''}</span>
+    const tag = (f) => (f.meal ? ' <span class="uni-tag">Gericht</span>' : f.mine ? ` <span class="uni-tag mine">${f.code ? 'Gescannt' : 'Eigenes'}</span>` : f.shared ? ' <span class="uni-tag shared">Gym-Nutzer</span>' : '');
+    const item = (f, i) => `<button class="drink" data-action="pick" data-i="${i}"><span class="drink-name">${esc(f.name)}${tag(f)}</span>
       <span class="drink-meta">${f.meal ? `<b>${fmtBig(f.kcal * f.portion / 100)}</b> kcal · ${fmtNum(Math.round(f.p * f.portion / 10) / 10)} g P <small>/Portion</small>` : `<b>${f.kcal}</b> kcal · ${fmtNum(f.p)} g P <small>/100 ${f.liquid ? 'ml' : 'g'}</small>`}</span></button>`;
     return (results.length ? results.map((f, i) => item(f, i)).join('') : '')
-      + (online.length ? `<div class="drinks-sep">Online (Open Food Facts)</div>${online.map((f, i) => item(f, results.length + i)).join('')}` : '')
+      + (online.length ? `<div class="drinks-sep">Online (Gym-Nutzer + Open Food Facts)</div>${online.map((f, i) => item(f, results.length + i)).join('')}` : '')
       || '<p class="muted small pad">Nichts gefunden – unten „Schnell eintragen“ nutzen.</p>';
   };
   const redraw = () => { const el = document.getElementById('foodRes'); if (el) el.innerHTML = list(); };
   openSheet(`<h2 class="sheet-title">Essen eintragen</h2>
     <div class="add-row">
       <input id="foodQ" class="input" placeholder="Suchen, z. B. Skyr, Haferflocken" autocomplete="off" data-input="q" enterkeyhint="search">
-      ${'BarcodeDetector' in window ? `<button class="btn" data-action="scan" aria-label="Barcode scannen">${ICON.barcode}</button>` : ''}
+      ${canScan() ? `<button class="btn" data-action="scan" aria-label="Barcode scannen">${ICON.barcode}</button>` : ''}
     </div>
     <p class="muted small" id="onlineState" style="margin:6px 2px 0"></p>
-    <button class="btn dashed" data-action="newMeal">${ICON.plus} Eigenes Gericht erstellen</button>
+    <div class="own-btns">
+      <button class="btn dashed" data-action="newFood">${ICON.plus} Eigene Zutat</button>
+      <button class="btn dashed" data-action="newMeal">${ICON.plus} Eigenes Gericht</button>
+    </div>
     <div class="drinks food-res" id="foodRes">${list()}</div>
     <h3 class="sheet-h">Schnell eintragen</h3>
     <input id="qName" class="input" placeholder="Name (optional)" maxlength="40" autocomplete="off" style="margin-bottom:8px">
@@ -282,7 +288,7 @@ function openAddSheet() {
     </div>
     <p class="note">Ohne kcal-Angabe rechnet die App aus den Makros: Protein und KH je 4 kcal/g, Fett 9 kcal/g.</p>
     <div class="sheet-actions"><button class="btn big" data-action="quick">Eintragen</button></div>
-    <p class="source">Lebensmittel: eingebaute Liste und ${DB_SOURCE}. Markenprodukte: Open Food Facts (online).</p>`, {
+    <p class="source">Lebensmittel: eingebaute Liste und ${DB_SOURCE}. Markenprodukte: von Gym-Nutzern gescannt und Open Food Facts (online).</p>`, {
     inputs: {
       q: (el) => {
         const q = el.value;
@@ -308,6 +314,7 @@ function openAddSheet() {
     },
     pick: (el) => openAmountSheet([...results, ...online][Number(el.dataset.i)]),
     newMeal: () => openMealBuilder(),
+    newFood: () => openFoodForm(),
     quick: () => {
       const num = (id) => { const x = parseNum(document.getElementById(id).value); return x && !Number.isNaN(x) ? x : 0; };
       const vals = { kcal: num('qKcal'), p: num('qP'), c: num('qC'), f: num('qF') };
@@ -334,7 +341,15 @@ function openAmountSheet(food) {
     <div class="chips amount-chips">${chips.map(([g, l]) => `<button class="chip" data-action="setG" data-g="${g}">${l}</button>`).join('')}</div>
     <p class="amount-calc" id="aCalc">${calc(start)}</p>
     <div class="sheet-actions"><button class="btn primary big" data-action="log">Eintragen</button>
-      ${food.meal ? '<div class="row"><button class="btn" data-action="editMeal">Gericht bearbeiten</button><button class="btn ghost danger" data-action="delMeal">Löschen</button></div>' : ''}</div>`, {
+      ${food.meal ? '<div class="row"><button class="btn" data-action="editMeal">Gericht bearbeiten</button><button class="btn ghost danger" data-action="delMeal">Löschen</button></div>' : ''}
+      ${food.mine ? `<div class="row"><button class="btn" data-action="editFood">${food.code ? 'Nährwerte ändern' : 'Bearbeiten'}</button><button class="btn ghost danger" data-action="delFood">Aus Liste</button></div>` : ''}</div>
+    ${food.mine || food.shared ? `<p class="source">${food.code ? `Barcode ${esc(food.code)} · für alle Gym-Nutzer` : 'Selbst angelegt · nur für dich'}</p>` : ''}`, {
+    editFood: () => openFoodForm(food),
+    delFood: async () => {
+      closeSheet();
+      if (!(await ask(`„${food.name}“ aus deiner Liste?`, 'Bereits eingetragenes Essen bleibt erhalten.', 'Entfernen', true))) return;
+      deleteMyFood(food.id); toast('Entfernt'); render();
+    },
     editMeal: () => openMealBuilder(meals().find((m) => m.id === food.mealId)),
     delMeal: async () => {
       closeSheet();
@@ -448,40 +463,166 @@ function openMealBuilder(meal = null) {
   if (!foodDbReady()) loadFoodDb();
 }
 
-// ---------- Barcode (Android/Chrome: BarcodeDetector) ----------
+// ---------- Eigenes Lebensmittel anlegen / ändern ----------
+
+/**
+ * Nährwerte je 100 g von der Packung abtippen.
+ * Ohne Barcode: nur für dich. Mit Barcode (gescannt): auch für alle anderen.
+ */
+function openFoodForm(food = null, code = food?.code || '') {
+  const v = (k) => (food?.[k] != null && food[k] !== 0 ? fmtNum(food[k]) : '');
+  const cats = [['', 'Sonstiges'], ['d', 'Milchprodukt'], ['v', 'Gemüse'], ['o', 'Obst']];
+  let cat = food?.cat || '', liquid = !!food?.liquid;
+  const field = (id, label, val, ph = '0') => `<label class="gfield"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val}" placeholder="${ph}" autocomplete="off"></label>`;
+  openSheet(`<h2 class="sheet-title">${food?.mine ? 'Lebensmittel ändern' : 'Eigenes Lebensmittel'}</h2>
+    <p class="muted small sheet-sub">${code ? `Barcode ${esc(code)} – wird für <b>alle Gym-Nutzer</b> gespeichert, damit der Scan beim nächsten Mal sofort klappt.` : 'Nur für dich. Steht danach beim Eintragen ganz oben.'}</p>
+    <label class="gfield"><span>Name</span><input id="nfName" value="${esc(food?.name || '')}" placeholder="z. B. Magerquark (Milsani)" maxlength="60" autocomplete="off"></label>
+    <h3 class="sheet-h">Nährwerte je 100 <span id="nfU">${liquid ? 'ml' : 'g'}</span> (von der Packung)</h3>
+    <div class="nf-grid">
+      ${field('nfKcal', 'Kalorien (kcal)', v('kcal'), 'auto')}
+      ${field('nfP', 'Eiweiß / Protein (g)', v('p'))}
+      ${field('nfC', 'Kohlenhydrate (g)', v('c'))}
+      ${field('nfSug', '… davon Zucker (g)', v('sug'))}
+      ${field('nfF', 'Fett (g)', v('f'))}
+      ${field('nfSat', '… davon gesättigt (g)', v('sat'))}
+      ${field('nfFib', 'Ballaststoffe (g)', v('fib'))}
+      ${field('nfPortion', 'Portion (g/ml)', food?.portion && food.portion !== 100 ? fmtNum(food.portion) : '', '100')}
+    </div>
+    <div class="nf-opts">
+      <div class="seg-wrap" role="group" aria-label="Art">${cats.map(([k, l]) => `<button class="seg-item${k === cat ? ' on' : ''}" data-action="cat" data-c="${k}">${l}</button>`).join('')}</div>
+      <button class="chip sec${liquid ? ' on' : ''}" data-action="liquid" aria-pressed="${liquid}">Getränk (ml)</button>
+    </div>
+    <p class="note">Kalorien leer lassen = aus den Nährwerten berechnet. „Art“ zählt für den Ernährungs-Kreis (Gemüse/Obst).</p>
+    <div class="sheet-actions"><button class="btn primary big" data-action="saveFood">Speichern</button></div>`, {
+    cat: (el) => { cat = el.dataset.c; el.parentElement.querySelectorAll('.seg-item').forEach((b) => b.classList.toggle('on', b === el)); },
+    liquid: (el) => { liquid = !liquid; el.classList.toggle('on', liquid); el.setAttribute('aria-pressed', liquid); document.getElementById('nfU').textContent = liquid ? 'ml' : 'g'; },
+    saveFood: async () => {
+      const num = (id) => { const x = parseNum(document.getElementById(id).value); return x == null || Number.isNaN(x) ? 0 : x; };
+      const f = {
+        id: food?.mine ? food.id : undefined, code: code || undefined,
+        name: document.getElementById('nfName').value.trim(),
+        kcal: num('nfKcal'), p: num('nfP'), c: num('nfC'), sug: num('nfSug'), f: num('nfF'), sat: num('nfSat'), fib: num('nfFib'),
+        portion: num('nfPortion') || 100, cat, liquid,
+      };
+      f.unit = f.portion !== 100 ? 'Portion' : '100 g';
+      if (!f.kcal) f.kcal = Math.round(f.p * 4 + f.c * 4 + f.f * 9 + f.fib * 2);
+      const err = checkFood(f);
+      if (err) return toast(err);
+      const saved = saveMyFood(f);
+      if (code) {
+        const ok = await communityAdd(saved);
+        toast(ok ? 'Gespeichert – jetzt für alle scannbar' : 'Gespeichert (für alle teilen klappt gerade nicht – nur bei dir)');
+      } else toast('Gespeichert – steht beim Eintragen ganz oben');
+      openAmountSheet(saved);
+    },
+  });
+  setTimeout(() => document.getElementById(food?.name ? 'nfKcal' : 'nfName')?.focus(), 350);
+}
+
+// ---------- Barcode scannen ----------
+// Android/Chrome: eingebauter BarcodeDetector. iPhone/Safari hat keinen →
+// ZXing (Open Source, Apache 2.0) wird beim ersten Scan nachgeladen.
+
+const canScan = () => !!navigator.mediaDevices?.getUserMedia;
+
+let zxing = null;
+function loadZxing() {
+  zxing ||= new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = 'js/vendor/zxing.min.js';
+    sc.onload = () => res(window.ZXing);
+    sc.onerror = () => { zxing = null; rej(new Error('Scanner konnte nicht geladen werden')); };
+    document.head.appendChild(sc);
+  });
+  return zxing;
+}
+
+/** Erkennung: Funktion (video) → Code oder null. */
+export async function makeDetector() {
+  if ('BarcodeDetector' in window) {
+    try {
+      const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
+      return async (v) => (await det.detect(v).catch(() => []))[0]?.rawValue || null;
+    } catch { /* weiter mit ZXing */ }
+  }
+  const Z = await loadZxing();
+  const hints = new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]], [Z.DecodeHintType.TRY_HARDER, true]]);
+  const reader = new Z.MultiFormatReader();
+  reader.setHints(hints);
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  return async (v) => {
+    if (!v.videoWidth) return null;
+    // nur den Bereich im Rahmen auswerten (schneller, weniger Fehltreffer)
+    const w = Math.round(v.videoWidth * 0.8), h = Math.round(v.videoHeight * 0.45);
+    cv.width = w; cv.height = h;
+    ctx.drawImage(v, (v.videoWidth - w) / 2, (v.videoHeight - h) / 2, w, h, 0, 0, w, h);
+    try {
+      const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(cv)));
+      return reader.decodeWithState(bmp).getText();
+    } catch { return null; }
+  };
+}
 
 async function scanBarcode() {
   closeSheet(true);
   const ov = document.createElement('div');
   ov.className = 'scan';
-  ov.innerHTML = `<video playsinline muted></video><div class="scan-frame"></div>
-    <p class="scan-text">Barcode in den Rahmen halten</p><button class="glass-circle scan-x" aria-label="Schließen">${ICON.x}</button>`;
+  ov.innerHTML = `<video playsinline muted></video><div class="scan-frame"><i class="scan-line"></i></div>
+    <p class="scan-text">Barcode in den Rahmen halten</p>
+    <button class="chip scan-type">Nummer eintippen</button>
+    <button class="glass-circle scan-x" aria-label="Schließen">${ICON.x}</button>`;
   document.body.appendChild(ov);
   let stream, stop = false;
   const end = () => { stop = true; stream?.getTracks().forEach((t) => t.stop()); ov.remove(); };
   ov.querySelector('.scan-x').onclick = () => { end(); openAddSheet(); };
+  ov.querySelector('.scan-type').onclick = () => { end(); openCodeSheet(); };
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    const [st, detect] = await Promise.all([
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
+      makeDetector(),
+    ]);
+    stream = st;
+    if (stop) return end();
     const v = ov.querySelector('video');
     v.srcObject = stream;
     await v.play();
-    const det = new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
     while (!stop) {
-      const codes = await det.detect(v).catch(() => []);
-      if (codes.length) {
-        const code = codes[0].rawValue;
+      const code = await detect(v);
+      if (code && /^\d{8,14}$/.test(code)) {
+        navigator.vibrate?.(30);
         end();
-        toast('Suche Produkt …');
-        const food = await byBarcode(code).catch(() => null);
-        if (food) openAmountSheet(food);
-        else { toast(`Produkt ${code} nicht gefunden – bitte suchen`); openAddSheet(); }
-        return;
+        return lookupCode(code);
       }
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 180));
     }
-  } catch {
+  } catch (e) {
     end();
-    toast('Kamera nicht verfügbar');
-    openAddSheet();
+    toast(e?.name === 'NotAllowedError' ? 'Kamera nicht erlaubt – in den Einstellungen für „Gym“ freigeben' : 'Kamera nicht verfügbar – Nummer eintippen');
+    openCodeSheet();
   }
+}
+
+/** Barcode-Nummer von Hand (steht unter den Strichen). */
+function openCodeSheet() {
+  openSheet(`<h2 class="sheet-title">Barcode eintippen</h2>
+    <p class="muted small sheet-sub">Die Zahl unter den Strichen (8 oder 13 Ziffern).</p>
+    <label class="gfield"><span>Barcode</span><input id="bcIn" inputmode="numeric" pattern="[0-9]*" maxlength="14" autocomplete="off" data-enter="go"></label>
+    <div class="sheet-actions"><button class="btn primary big" data-action="go">Suchen</button></div>`, {
+    go: () => {
+      const code = document.getElementById('bcIn').value.replace(/\D/g, '');
+      if (!/^\d{8,14}$/.test(code)) return toast('8 bis 14 Ziffern eingeben');
+      closeSheet(true);
+      lookupCode(code);
+    },
+  });
+  setTimeout(() => document.getElementById('bcIn')?.focus(), 350);
+}
+
+async function lookupCode(code) {
+  toast('Suche Produkt …');
+  const food = await byBarcode(code).catch(() => null);
+  if (food) { openAmountSheet(food); return; }
+  toast('Noch nicht bekannt – Nährwerte von der Packung eintragen');
+  openFoodForm(null, code);
 }

@@ -25,6 +25,7 @@
 // Nährwerte der eingebauten Liste: Durchschnittswerte je 100 g (ca.).
 // =============================================================
 
+import { PUSH_SERVER } from './push-config.js';
 import { data, save, sessionsByDate, currentVersion, plannedOf } from './store.js';
 import { addDays, dateStr, uid, parseDate } from './util.js';
 import { bodyTrend } from './coach.js';
@@ -367,7 +368,16 @@ function fromOFF(p) {
 
 const OFF_FIELDS = 'code,product_name,brands,nutriments,serving_quantity,food_groups_tags';
 
+/** Online: erst gemeinsame Datenbank der App, dann Open Food Facts. */
 export async function searchOnline(q, signal) {
+  const [mine, off] = await Promise.allSettled([communitySearch(q, signal), searchOFF(q, signal)]);
+  if (mine.status === 'rejected' && off.status === 'rejected') throw off.reason;
+  const a = mine.status === 'fulfilled' ? mine.value : [];
+  const b = (off.status === 'fulfilled' ? off.value : []).filter((x) => !a.some((y) => y.code && y.code === String(x.id).replace('off:', '')));
+  return [...a, ...b];
+}
+
+async function searchOFF(q, signal) {
   const url = `https://de.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&fields=${OFF_FIELDS}`;
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error('Suche nicht erreichbar');
@@ -375,11 +385,27 @@ export async function searchOnline(q, signal) {
   return (d.products || []).map(fromOFF).filter(Boolean);
 }
 
+async function offByCode(code) {
+  const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${OFF_FIELDS}`).catch(() => null);
+  if (!r?.ok) return null;
+  const d = await r.json().catch(() => null);
+  return d?.product ? fromOFF({ ...d.product, code }) : null;
+}
+
+/**
+ * Barcode nachschlagen: eigene Liste → gemeinsame Datenbank → Open Food Facts.
+ * Gefundenes landet in deiner Liste und (falls neu) in der gemeinsamen Datenbank.
+ * Rückgabe: Lebensmittel oder null (dann selbst anlegen).
+ */
 export async function byBarcode(code) {
-  const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=${OFF_FIELDS}`);
-  if (!r.ok) return null;
-  const d = await r.json();
-  return d.product ? fromOFF({ ...d.product, code }) : null;
+  const own = myFoods().find((x) => x.code === code);
+  if (own) return own;
+  let f = await communityByCode(code);
+  if (!f) {
+    f = await offByCode(code);
+    if (f) { f.code = code; communityAdd(f); }
+  }
+  return f ? saveMyFood({ ...f, code }) : null;
 }
 
 // ---------- Eigene Gerichte ----------
@@ -428,8 +454,81 @@ export function deleteMeal(id) {
 
 /** Nur die Nährwerte speichern (keine Hilfsfelder). */
 function stripFood(f) {
-  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit } = f;
-  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g' };
+  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit, liquid, code } = f;
+  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g', ...(liquid ? { liquid: true } : {}), ...(code ? { code } : {}) };
+}
+
+// ---------- Eigene Lebensmittel ----------
+// Selbst angelegt (Nährwerte je 100 g eingetippt) → nur für dich.
+// Mit Barcode (gescannt) → zusätzlich in der gemeinsamen Datenbank aller App-Nutzer.
+
+export const myFoods = () => data.myFoods || [];
+
+/** Speichern bzw. ändern. Rückgabe: gespeichertes Lebensmittel. */
+export function saveMyFood(food) {
+  const f = stripFood({ ...food, id: food.id && String(food.id).startsWith('u:') ? food.id : 'u:' + uid() });
+  f.name = String(f.name).trim().slice(0, 60);
+  f.mine = true;
+  // gleicher Barcode bzw. gleiche ID ersetzen
+  data.myFoods = myFoods().filter((x) => x.id !== f.id && !(f.code && x.code === f.code));
+  data.myFoods.unshift(f);
+  save();
+  return f;
+}
+
+export function deleteMyFood(id) {
+  data.myFoods = myFoods().filter((x) => x.id !== id);
+  save();
+}
+
+/** Plausibel? (Werte je 100 g) – sonst Fehlertext. */
+export function checkFood(f) {
+  const n = (v) => Number(v) || 0;
+  if (!f.name || f.name.trim().length < 2) return 'Name eingeben';
+  if (n(f.kcal) <= 0 && n(f.p) + n(f.c) + n(f.f) <= 0) return 'Kalorien oder Nährwerte eingeben';
+  if (n(f.kcal) > 900) return 'Mehr als 900 kcal pro 100 g gibt es nicht';
+  if ([f.p, f.c, f.f, f.fib, f.sug, f.sat].some((v) => n(v) < 0 || n(v) > 100)) return 'Nährwerte je 100 g müssen zwischen 0 und 100 g liegen';
+  if (n(f.p) + n(f.c) + n(f.f) + n(f.fib) > 101) return 'Protein + KH + Fett zusammen über 100 g – Werte je 100 g prüfen';
+  if (n(f.sug) > n(f.c) + 0.5) return '„davon Zucker“ kann nicht mehr sein als Kohlenhydrate';
+  if (n(f.sat) > n(f.f) + 0.5) return '„davon gesättigt“ kann nicht mehr sein als Fett';
+  const calc = n(f.p) * 4 + n(f.c) * 4 + n(f.f) * 9 + n(f.fib) * 2;
+  if (n(f.kcal) && calc && Math.abs(n(f.kcal) - calc) > Math.max(60, n(f.kcal) * 0.35)) return `Kalorien passen nicht zu den Nährwerten (daraus ergeben sich ca. ${Math.round(calc)} kcal) – Werte je 100 g prüfen`;
+  return null;
+}
+
+// ---------- Gemeinsame Datenbank (Barcode-Produkte aller Nutzer, Push-Server) ----------
+
+const API = () => (PUSH_SERVER || '').replace(/\/$/, '');
+const myKey = () => {
+  if (!data.profile.key) { data.profile.key = uid() + uid() + uid(); save(); }
+  return data.profile.key;
+};
+
+export async function communityByCode(code) {
+  if (!API()) return null;
+  const r = await fetch(`${API()}/food/code/${encodeURIComponent(code)}`).catch(() => null);
+  if (!r?.ok) return null;
+  const f = await r.json().catch(() => null);
+  return f?.name ? { ...f, id: 'g:' + code, code, shared: true } : null;
+}
+
+export async function communitySearch(q, signal) {
+  if (!API()) return [];
+  const r = await fetch(`${API()}/food/search?q=${encodeURIComponent(q)}`, { signal });
+  if (!r.ok) return [];
+  const d = await r.json();
+  return (d.items || []).map((f) => ({ ...f, id: 'g:' + f.code, shared: true }));
+}
+
+/** Produkt mit Barcode für alle bereitstellen (bestehende Einträge anderer bleiben unverändert). */
+export async function communityAdd(food) {
+  if (!API() || !/^\d{8,14}$/.test(food.code || '')) return false;
+  const { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid, code } = stripFood(food);
+  const r = await fetch(`${API()}/food/add`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: myKey(), food: { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid: !!liquid, code } }),
+  }).catch(() => null);
+  return !!r?.ok;
 }
 
 // ---------- Große Datenbank: Schweizer Nährwertdatenbank (BLV, V 7.1) ----------
@@ -502,9 +601,10 @@ function score(food, words) {
 export function searchFoods(q, { withMeals = true, limit = 40 } = {}) {
   const words = norm(q).split(/[\s,]+/).filter(Boolean);
   const own = withMeals ? data.meals.map(mealAsFood) : [];
-  const recent = recentFoods(20).filter((r) => !String(r.id).startsWith('m:') && !own.some((m) => m.name === r.name));
-  if (!words.length) return [...own, ...recent, ...FOODS.filter((f) => !recent.some((r) => r.name === f.name))].slice(0, limit);
-  const groups = [[own, 3], [recent, 2], [FOODS, 1.5], [chDb || [], 0]];
+  const mine = myFoods();
+  const recent = recentFoods(20).filter((r) => !String(r.id).startsWith('m:') && !own.some((m) => m.name === r.name) && !mine.some((m) => m.name === r.name));
+  if (!words.length) return [...own, ...mine, ...recent, ...FOODS.filter((f) => !recent.some((r) => r.name === f.name))].slice(0, limit);
+  const groups = [[own, 3], [mine, 3], [recent, 2], [FOODS, 1.5], [chDb || [], 0]];
   const seen = new Set();
   const hits = [];
   for (const [list, bonus] of groups) {
