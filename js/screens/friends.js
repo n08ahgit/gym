@@ -87,20 +87,17 @@ export const friendsScreen = {
 
       ${caffeineCard()}
 
-      <section class="card">
-        <div class="card-head"><h2>Freund hinzufügen</h2></div>
-        <div class="add-row">
-          <input id="fcode" class="input code-input" placeholder="Code, z. B. K7Q2MX" maxlength="80" autocomplete="off" autocapitalize="characters" spellcheck="false" data-enter="addFriend">
-          <button class="btn" data-action="addFriend">Hinzufügen</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <div class="card-head"><h2>Dein Code</h2></div>
+      <section class="card invite-card">
+        <div class="card-head"><h2>Freunde hinzufügen</h2></div>
         <label class="label first" for="pname">Dein Name in der Rangliste</label>
         <input id="pname" class="input" data-input="pname" value="${esc(data.profile.name)}" placeholder="z. B. Alex" maxlength="24" autocomplete="off">
-        ${data.profile.name ? `<button class="my-code" data-action="copyCode" aria-label="Code kopieren"><span class="my-code-val">${shortCode()}</span><span class="muted small">Antippen zum Kopieren</span></button>` : ''}
+        ${data.profile.name ? `<button class="my-code" data-action="copyCode" aria-label="Code kopieren"><span class="my-code-val">${shortCode()}</span><span class="muted small">Dein Code · antippen zum Kopieren</span></button>` : ''}
         <button class="btn primary big full" data-action="share">${ICON.share} Einladung per WhatsApp & Co.</button>
+        <label class="label" for="fcode">Code von einem Freund</label>
+        <div class="add-row">
+          <input id="fcode" class="input code-input" placeholder="z. B. K7Q2MX" maxlength="80" autocomplete="off" autocapitalize="characters" spellcheck="false" data-enter="addFriend">
+          <button class="btn" data-action="addFriend">Hinzufügen</button>
+        </div>
         <p class="note">Freunde sehen nur deinen Namen und Kennzahlen (Trainings, Streak, Volumen, Kraftwerte) – keine einzelnen Workouts.</p>
       </section>
     </main>${tabBar('friends')}`;

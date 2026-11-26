@@ -2,7 +2,7 @@
 // settings.js – Export / Import (JSON), eigene Übungen, Daten löschen
 // =============================================================
 
-import { go, render, ask, toast } from '../app.js';
+import { go, render, ask, toast, openSheet } from '../app.js';
 import { data, importJSON, removeCustomExercise, wipeAll, setWeightUnit } from '../store.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
 import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
@@ -30,50 +30,24 @@ function newsCard() {
 export const settingsScreen = {
   render() {
     const first = data.planVersions[0]?.from;
-    const custom = data.customExercises
-      .map((e) => `<li><span><b>${esc(e.name)}</b><br><span class="muted small">${esc(muscleNames(e.primary))}</span></span>
-        <button class="icon-btn sm" data-action="delCustom" data-id="${esc(e.id)}" aria-label="Löschen">${ICON.x}</button></li>`)
-      .join('');
 
     return `
       <main class="content no-title has-tabbar">
         ${newsCard()}
 
-        <section class="card">
-          <h3 class="section-title first">Datensicherung</h3>
-          <p class="muted small">Automatisch: jeden Tag ein Schnappschuss auf diesem iPhone, die letzten 14 Tage bleiben erhalten.</p>
-          <ul class="plain-list snaps" id="snaps"><li class="muted small">Lade Sicherungen …</li></ul>
-          <h4 class="sub-title">In iCloud Drive / Dateien</h4>
-          <p class="muted small">Schützt auch bei Verlust des iPhones. ${exportInfo()}</p>
-          <button class="btn primary big" data-action="export">${ICON.share} Backup-Datei sichern</button>
-          <label class="btn big file-btn">Backup importieren
-            <input type="file" accept="application/json,.json" id="importFile" hidden>
-          </label>
+        <section class="card list-card set-list">
+          <div class="set-row unit-row"><span class="set-ic">${ICON.scale}</span><span class="lr-main"><span class="lr-title">Gewichtseinheit</span></span>
+            <div class="seg-wrap" role="group" aria-label="Gewichtseinheit">
+              <button class="seg-item${data.settings.unit === 'lb' ? '' : ' on'}" data-action="unit" data-u="kg">kg</button>
+              <button class="seg-item${data.settings.unit === 'lb' ? ' on' : ''}" data-action="unit" data-u="lb">lb</button>
+            </div></div>
+          ${setRow('openPush', ICON.bell, 'Mitteilungen', pushLabel())}
+          ${setRow('openBackup', ICON.shield, 'Datensicherung', exportShort())}
+          ${setRow('openCustom', ICON.dumbbell, 'Eigene Übungen', data.customExercises.length ? `${data.customExercises.length} angelegt` : 'Noch keine')}
         </section>
 
-        <section class="card">
-          <h3 class="section-title first">Gewichtseinheit</h3>
-          <div class="seg-wrap seg-full" role="group" aria-label="Gewichtseinheit">
-            <button class="seg-item${data.settings.unit === 'lb' ? '' : ' on'}" data-action="unit" data-u="kg">Kilogramm (kg)</button>
-            <button class="seg-item${data.settings.unit === 'lb' ? ' on' : ''}" data-action="unit" data-u="lb">Pfund (lb)</button>
-          </div>
-          <p class="note">Gilt für Hanteln, Rekorde, Scheibenrechner und Körpergewicht. Alte Einträge werden umgerechnet angezeigt – nichts geht verloren.</p>
-        </section>
-
-        ${pushCard()}
-
-        <section class="card">
-          <h3 class="section-title first">Verbesserungsvorschlag</h3>
-          <p class="muted small">Was fehlt dir, was nervt, was soll besser werden? Jeder Vorschlag wird gelesen.</p>
-          <textarea id="fbText" class="input fb-text" rows="4" maxlength="2000" placeholder="z. B. „Ich hätte gern …“"></textarea>
-          <input id="fbName" class="input fb-name" maxlength="40" placeholder="Dein Name (optional)" value="${esc(data.profile.name || '')}" autocomplete="off">
-          <input id="fbWebsite" class="fb-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
-          <button class="btn primary big full" data-action="sendFeedback">Vorschlag senden</button>
-        </section>
-
-        <section class="card">
-          <h3 class="section-title first">Eigene Übungen</h3>
-          ${custom ? `<ul class="plain-list">${custom}</ul>` : '<p class="muted small">Noch keine. Anlegen über „Übung hinzufügen“ im Plan.</p>'}
+        <section class="card list-card set-list">
+          ${setRow('openFeedback', ICON.edit, 'Verbesserungsvorschlag', 'Was fehlt dir? Jeder Vorschlag wird gelesen.')}
         </section>
 
         <section class="card">
@@ -92,14 +66,17 @@ export const settingsScreen = {
     // Neuheiten gelten als gelesen, sobald man sie gesehen hat (Markierung „Neu“ bleibt bis zum nächsten Öffnen)
     markSeen();
     document.querySelector('.tab-dot')?.remove();
-    root.querySelector('#importFile').addEventListener('change', onImport);
-    fillSnapshots(root);
   },
 
   actions: {
     back: () => go('home'),
 
     export: async () => { if (await exportFile()) render(); },
+
+    openPush: () => openPushSheet(),
+    openBackup: () => openBackupSheet(),
+    openCustom: () => openCustomSheet(),
+    openFeedback: () => openFeedbackSheet(),
 
     unit: (el) => { setWeightUnit(el.dataset.u); toast(el.dataset.u === 'lb' ? 'Gewichte jetzt in Pfund (lb)' : 'Gewichte jetzt in Kilogramm (kg)'); render(); },
 
@@ -197,6 +174,64 @@ async function fillSnapshots(root) {
   }).join('') : '<li class="muted small">Noch keine – die erste entsteht, sobald du einen Plan oder ein Workout hast.</li>';
 }
 
+// ---------- Zeilen + Unterfenster ----------
+
+const setRow = (action, icon, title, sub) => `<button class="list-row set-row" data-action="${action}">
+  <span class="set-ic">${icon}</span><span class="lr-main"><span class="lr-title">${title}</span><span class="lr-sub">${sub}</span></span>
+  <span class="chev">${ICON.chev}</span></button>`;
+
+function pushLabel() {
+  return { on: 'An – Pausenende und Supplements', off: '<b class="warn-text">Aus</b> – antippen zum Einschalten', denied: '<b class="warn-text">Blockiert</b>', 'not-installed': 'Nur in der App vom Home-Bildschirm', unsupported: 'Nicht unterstützt', 'not-configured': 'Nicht eingerichtet' }[pushStatus()];
+}
+function exportShort() {
+  const d = daysSinceExport();
+  return `Automatisch täglich · ${d === Infinity ? '<b class="warn-text">Datei noch nie gesichert</b>' : d === 0 ? 'Datei heute gesichert' : `Datei vor ${d} ${d === 1 ? 'Tag' : 'Tagen'}`}`;
+}
+
+/** Aktionen der Einstellungen auch in den Unterfenstern verfügbar; reopen = Fenster danach neu zeichnen. */
+const sheetActs = (reopen) => {
+  const A = settingsScreen.actions;
+  const wrap = (fn) => async (el, ev) => { await fn(el, ev); if (document.getElementById('sheet')?.hidden === false || reopen) reopen?.(); };
+  return { ...A, pushOn: wrap(A.pushOn), pushOff: wrap(A.pushOff), export: wrap(A.export), delCustom: wrap(A.delCustom) };
+};
+
+function openPushSheet() {
+  openSheet(`<h2 class="sheet-title">Mitteilungen</h2>${pushCard()}`, sheetActs(openPushSheet));
+}
+
+function openBackupSheet() {
+  openSheet(`<h2 class="sheet-title">Datensicherung</h2>
+    <p class="muted small sheet-sub">Automatisch: jeden Tag ein Schnappschuss auf diesem Gerät, die letzten 14 Tage bleiben erhalten.</p>
+    <ul class="plain-list snaps" id="snaps"><li class="muted small">Lade Sicherungen …</li></ul>
+    <h3 class="sheet-h">In iCloud Drive / Dateien</h3>
+    <p class="muted small">Schützt auch bei Verlust des Handys. ${exportInfo()}</p>
+    <div class="stack">
+      <button class="btn primary big" data-action="export">${ICON.share} Backup-Datei sichern</button>
+      <label class="btn big file-btn">Backup importieren<input type="file" accept="application/json,.json" id="importFile" hidden></label>
+    </div>`, sheetActs(openBackupSheet));
+  const sheet = document.getElementById('sheet');
+  sheet.querySelector('#importFile').addEventListener('change', onImport);
+  fillSnapshots(sheet);
+}
+
+function openCustomSheet() {
+  const custom = data.customExercises
+    .map((e) => `<li><span><b>${esc(e.name)}</b><br><span class="muted small">${esc(muscleNames(e.primary))}</span></span>
+      <button class="icon-btn sm" data-action="delCustom" data-id="${esc(e.id)}" aria-label="Löschen">${ICON.x}</button></li>`).join('');
+  openSheet(`<h2 class="sheet-title">Eigene Übungen</h2>
+    ${custom ? `<ul class="plain-list">${custom}</ul>` : '<p class="muted">Noch keine. Anlegen im Plan über „Übung hinzufügen“.</p>'}`, sheetActs(openCustomSheet));
+}
+
+function openFeedbackSheet() {
+  openSheet(`<h2 class="sheet-title">Verbesserungsvorschlag</h2>
+    <p class="muted small sheet-sub">Was fehlt dir, was nervt, was soll besser werden? Jeder Vorschlag wird gelesen.</p>
+    <textarea id="fbText" class="input fb-text" rows="5" maxlength="2000" placeholder="z. B. „Ich hätte gern …“"></textarea>
+    <input id="fbName" class="input fb-name" maxlength="40" placeholder="Dein Name (optional)" value="${esc(data.profile.name || '')}" autocomplete="off">
+    <input id="fbWebsite" class="fb-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <button class="btn primary big full" data-action="sendFeedback">Vorschlag senden</button>`, sheetActs(null));
+  setTimeout(() => document.getElementById('fbText')?.focus(), 350);
+}
+
 /** Karte: Mitteilung am Pausenende (Push). */
 function pushCard() {
   const st = pushStatus();
@@ -205,14 +240,13 @@ function pushCard() {
     'not-installed': 'Funktioniert nur in der App vom Home-Bildschirm (Safari → Teilen → Zum Home-Bildschirm), ab iOS 16.4.',
     unsupported: 'Dieses Gerät unterstützt keine Web-Mitteilungen (iOS 16.4 oder neuer nötig).',
     denied: 'Mitteilungen sind blockiert. Erlauben unter iPhone-Einstellungen → Mitteilungen → Gym.',
-    off: 'Verlässt du die App während einer Pause, bekommst du 10 Sekunden vor dem Ende eine Mitteilung – auch bei gesperrtem iPhone.',
-    on: 'An. Verlässt du die App während einer Pause, kommt 10 Sekunden vor dem Ende eine Mitteilung. Bist du in der App, piept sie wie gewohnt.',
+    off: 'Für die Mitteilung 10 Sekunden vor Pausenende und deine Supplement-Erinnerungen – auch bei geschlossener App und gesperrtem Handy.',
+    on: 'An. Pausenende: 10 Sekunden vorher kommt eine Mitteilung, wenn du die App verlassen hast (in der App piept sie). Supplements: zur eingestellten Uhrzeit.',
   }[st];
   const btns = st === 'off' ? '<button class="btn primary big" data-action="pushOn">Mitteilungen einschalten</button>'
     : st === 'on' ? '<button class="btn big" data-action="pushTest">Test in 10 Sekunden</button><button class="btn ghost full" data-action="pushCheck">Letzte Zustellung prüfen</button><button class="btn ghost full" data-action="pushOff">Ausschalten</button>'
     : '';
-  return `<section class="card">
-    <h3 class="section-title first">Mitteilung am Pausenende</h3>
+  return `<section class="push-box">
     <p class="muted small">${text}</p>${btns ? `<div class="stack">${btns}</div>` : ''}
     <p class="source" id="pushDiag">${esc(diagnose())}</p>
   </section>`;

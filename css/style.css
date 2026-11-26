@@ -1017,3 +1017,25 @@ button.hist-row .chev { grid-column: 2; grid-row: 1 / span 2; color: var(--muted
 .meal-res:empty { display: none; }
 .meal-res { margin-top: 6px; }
 .food-edit { text-align: left; min-width: 0; }
+
+/* Kalorien-Karte antippbar */
+.kcal-tap { display: block; width: 100%; text-align: left; color: inherit; border-radius: 14px; margin: -4px; padding: 4px; width: calc(100% + 8px); }
+.kcal-tap:active { background: rgba(255, 255, 255, .04); }
+.kcal-more { display: flex; align-items: center; gap: 4px; margin: 12px 0 2px; font-size: 0.82rem; color: var(--muted); }
+.kcal-more .chev { margin-left: auto; display: inline-flex; color: var(--muted); }
+.kcal-more .chev svg { width: 16px; height: 16px; }
+#sheet .goal-card, #sheet .chart-card { box-shadow: none; background: var(--surface); }
+#sheet .food-row { width: 100%; text-align: left; }
+#sheet .food-row .chev { color: var(--muted); display: inline-flex; }
+
+/* Einstellungen als Liste */
+.set-list { padding-top: 4px; padding-bottom: 4px; }
+.set-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; }
+.set-row .lr-main { flex: 1; min-width: 0; }
+.set-row .chev { color: var(--muted); display: inline-flex; }
+.set-ic { flex: none; width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.set-ic svg { width: 18px; height: 18px; }
+.unit-row { padding: 10px 0; }
+.unit-row .seg-item { padding: 0 14px; }
+.push-box .stack { margin-top: 12px; }
+#sheet .snaps { margin-bottom: 4px; }

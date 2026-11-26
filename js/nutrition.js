@@ -107,11 +107,11 @@ function bmrOf(n, w) {
 function palOf(n) {
   if (n.steps > 0) {
     const pal = 1.3 + Math.max(0, n.steps - 3000) / 1000 * 0.05;
-    const jobExtra = n.job >= 1.8 ? (n.job >= 2 ? 0.4 : 0.2) : 0; // schwere Arbeit zählt nicht nur über Schritte
+    const jobExtra = Number(n.job) >= 1.8 ? (n.job >= 2 ? 0.4 : 0.2) : 0; // schwere Arbeit zählt nicht nur über Schritte
     return Math.min(2.4, pal + jobExtra);
   }
-  if (n.job) return n.job;
-  return n.activity ? Math.min(n.activity, 1.9) : 1.6;
+  if (Number(n.job) >= 1.2 && Number(n.job) <= 2.4) return Number(n.job);
+  return Number(n.activity) > 0 ? Math.min(Number(n.activity), 1.9) : 1.6; // ungültige Angabe → Durchschnitt
 }
 
 /** Trainings- und Sportverbrauch pro Tag (netto, über die Woche gemittelt). */
@@ -164,7 +164,7 @@ export function targets(today = new Date()) {
   const warn = [];
 
   // Tempo: aus Zielgewicht + Datum oder Standard nach Ziel/Erfahrung (% Körpergewicht pro Woche)
-  let rate = goal === 'bulk' ? LEVELS[n.level || 'intermediate'][1] : goal === 'cut' ? -0.7 : 0;
+  let rate = goal === 'bulk' ? (LEVELS[n.level] || LEVELS.intermediate)[1] : goal === 'cut' ? -0.7 : 0;
   let plan = null;
   if (n.targetWeight && n.targetDate && n.targetDate > dateStr(today)) {
     const weeks = (parseDate(n.targetDate) - parseDate(dateStr(today))) / (7 * 864e5);

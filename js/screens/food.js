@@ -49,18 +49,6 @@ export const foodScreen = {
     const hs = healthScore(ds, t);
     const water = waterOf(ds), wTarget = waterTarget(ds);
 
-    const rows = list.map((x) => `<div class="list-row static food-row">
-        <button class="lr-main food-edit" data-action="editEntry" data-id="${esc(x.id)}" aria-label="${esc(x.name)} ändern"><span class="lr-title">${esc(x.name)}</span>
-          <span class="lr-sub">${x.g ? `${fmtBig(x.g)} ${x.ref?.liquid ? 'ml' : 'g'} · ` : ''}P ${fmtNum(Math.round(x.p))} · KH ${fmtNum(Math.round(x.c || 0))} · F ${fmtNum(Math.round(x.f || 0))} · ${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></button>
-        <span class="lr-value">${fmtBig(x.kcal)}<small> kcal</small></span>
-        <button class="icon-btn sm" data-action="del" data-id="${esc(x.id)}" aria-label="Löschen">${ICON.x}</button></div>`).join('');
-
-    const week = lastDays(7);
-    const chart = columnChart(week.days.map((d) => ({
-      label: WD_SHORT[weekdayIdx(parseDate(d.ds))], done: d.kcal, planned: t.kcal,
-      tip: `${fmtDateLong(d.ds)}: ${d.has ? `${fmtBig(d.kcal)} kcal, ${Math.round(d.p)} g Protein` : 'nichts eingetragen'}`,
-    })), { height: 140 });
-
     return `<main class="content no-title has-tabbar food">
       <div class="day-switch">
         <button class="icon-btn sm" data-action="prevDay" aria-label="Vorheriger Tag">${ICON.chevL}</button>
@@ -69,6 +57,7 @@ export const foodScreen = {
       </div>
 
       <section class="card kcal-card">
+        <button class="kcal-tap" data-action="dayFood" aria-label="${dayName}: Einträge, Ziel und Verlauf">
         <div class="kcal-top">
           <div><span class="kcal-big">${fmtBig(Math.abs(left))}</span><span class="kcal-unit"> kcal ${left >= 0 ? 'übrig' : 'drüber'}</span></div>
           <span class="muted small">${fmtBig(sum.kcal)} / ${fmtBig(t.kcal)}</span>
@@ -79,6 +68,8 @@ export const foodScreen = {
           <div><span>Kohlenhydr.</span><b>${Math.round(sum.c)} / ${t.c} g</b>${bar(sum.c, t.c, 'c')}</div>
           <div><span>Fett</span><b>${Math.round(sum.f)} / ${t.f} g</b>${bar(sum.f, t.f, 'f')}</div>
         </div>
+        <span class="kcal-more">${list.length ? `${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'} ändern` : 'Noch nichts eingetragen'} · Ziel ${GOALS[profile().goal || 'bulk'][0]}${adjustHint() || t.warn.length ? ' · <b class="warn-text">Hinweis</b>' : ''}<span class="chev">${ICON.chev}</span></span>
+        </button>
         <button class="btn primary big full" data-action="add">${ICON.plus} Essen eintragen</button>
       </section>
 
@@ -97,20 +88,12 @@ export const foodScreen = {
 
       ${suppCard(ds)}
 
-      ${list.length ? `<section class="card list-card"><div class="card-head"><h2>${dayName === 'Heute' ? 'Heute gegessen' : 'Gegessen'}</h2><span class="muted small">${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'}</span></div>${rows}</section>` : ''}
-
-      ${goalCard(t)}
-
-      <section class="card">
-        <div class="card-head"><h2>Letzte 7 Tage</h2><span class="muted small">${week.avg ? `Ø ${fmtBig(week.avg.kcal)} kcal · ${week.avg.p} g Protein` : 'noch keine Einträge'}</span></div>
-        ${chart}
-        <p class="chart-tip" id="weekTip">Balken antippen für Details. Heller Balken = Ziel.</p>
-      </section>
     </main>${tabBar('food')}`;
   },
 
   actions: {
     ...suppActions,
+    dayFood: () => openDayFood(ui.params.date || dateStr()),
     setup: () => openGoalSheet(),
     goal: () => openGoalSheet(),
     add: () => openAddSheet(),
@@ -371,10 +354,47 @@ function openAmountSheet(food) {
   });
 }
 
+// ---------- Tagesübersicht (Kalorien-Karte antippen) ----------
+// Alles, was zu den Kalorien gehört: Einträge (antippen = ändern), Ziel, letzte 7 Tage.
+
+function openDayFood(ds) {
+  const t = targets();
+  const today = dateStr();
+  const list = entriesOf(ds).slice().sort((a, b) => a.t - b.t);
+  const dayName = ds === today ? 'Heute' : ds === dateStr(addDays(new Date(), -1)) ? 'Gestern' : fmtDateLong(ds);
+  const rows = list.map((x) => `<button class="list-row food-row" data-action="editEntry" data-id="${esc(x.id)}">
+      <span class="lr-main"><span class="lr-title">${esc(x.name)}</span>
+        <span class="lr-sub">${x.g ? `${fmtBig(x.g)} ${x.ref?.liquid ? 'ml' : 'g'} · ` : ''}P ${fmtNum(Math.round(x.p))} · KH ${fmtNum(Math.round(x.c || 0))} · F ${fmtNum(Math.round(x.f || 0))} · ${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
+      <span class="lr-value">${fmtBig(x.kcal)}<small> kcal</small></span><span class="chev">${ICON.chev}</span></button>`).join('');
+  const week = lastDays(7);
+  const chart = columnChart(week.days.map((d) => ({
+    label: WD_SHORT[weekdayIdx(parseDate(d.ds))], done: d.kcal, planned: t.kcal,
+    tip: `${fmtDateLong(d.ds)}: ${d.has ? `${fmtBig(d.kcal)} kcal, ${Math.round(d.p)} g Protein` : 'nichts eingetragen'}`,
+  })), { height: 130 });
+  openSheet(`<h2 class="sheet-title">${dayName === 'Heute' ? 'Heute gegessen' : `Gegessen · ${dayName}`}</h2>
+    ${rows ? `<div class="list-card sheet-list-card">${rows}</div><p class="muted small sheet-sub">Eintrag antippen zum Ändern oder Löschen.</p>` : '<p class="muted">Noch nichts eingetragen.</p>'}
+    ${ds === today ? `<button class="btn primary big full" data-action="add">${ICON.plus} Essen eintragen</button>` : ''}
+    <h3 class="sheet-h">Ziel</h3>
+    ${goalCard(t)}
+    <h3 class="sheet-h">Letzte 7 Tage <span class="muted small">${week.avg ? `· Ø ${fmtBig(week.avg.kcal)} kcal · ${week.avg.p} g Protein` : ''}</span></h3>
+    <section class="card chart-card">${chart}<p class="chart-tip" id="weekTip">Balken antippen für Details. Heller Balken = Ziel.</p></section>`, {
+    editEntry: (el) => openEntryEdit(el.dataset.id, ds),
+    add: () => openAddSheet(),
+    goal: () => openGoalSheet(),
+    applyHint: (el) => { saveProfile({ adjust: (profile().adjust || 0) + Number(el.dataset.d), kcal: null }); toast('Ziel angepasst'); render(); openDayFood(ds); },
+    tip: (el) => {
+      document.querySelectorAll('#sheet .chart .hit.sel').forEach((h) => h.classList.remove('sel'));
+      el.classList.add('sel');
+      el.closest('svg').classList.add('has-sel');
+      document.getElementById('weekTip').textContent = el.dataset.tip;
+    },
+  });
+}
+
 // ---------- Eingetragenes Essen ändern ----------
 
-function openEntryEdit(id) {
-  const x = entriesOf(ui.params.date || dateStr()).find((e) => e.id === id);
+function openEntryEdit(id, ds = ui.params.date || dateStr()) {
+  const x = entriesOf(ds).find((e) => e.id === id);
   if (!x) return;
   const time = new Date(x.t).toTimeString().slice(0, 5);
   const unit = x.ref?.liquid ? 'ml' : 'g';
@@ -388,7 +408,8 @@ function openEntryEdit(id) {
     : `<div class="quick-grid">${qf('eKcal', x.kcal, 'kcal')}${qf('eP', x.p, 'g Protein')}${qf('eC', x.c, 'g KH')}${qf('eF', x.f, 'g Fett')}</div>`}
     <label class="gfield inline"><span>Uhrzeit</span><input id="eTime" type="time" value="${time}"></label>
     <div class="sheet-actions"><button class="btn primary big" data-action="saveEntry">Speichern</button>
-      <button class="btn ghost big danger" data-action="delEntry">${ICON.trash} Löschen</button></div>`, {
+      <button class="btn ghost big danger" data-action="delEntry">${ICON.trash} Löschen</button>
+      <button class="btn ghost big" data-action="backDay">${ICON.back} Zurück zur Übersicht</button></div>`, {
     inputs: { eg: (el) => { const g = parseNum(el.value); if (g && !Number.isNaN(g)) document.getElementById('eCalc').innerHTML = calc(g); } },
     saveEntry: () => {
       const num = (i) => { const v = parseNum(document.getElementById(i)?.value); return v == null || Number.isNaN(v) ? null : v; };
@@ -402,9 +423,10 @@ function openEntryEdit(id) {
         if (!patch.kcal && !patch.p && !patch.c && !patch.f) return toast('Kalorien oder Makros eingeben');
       }
       updateFood(x.id, patch);
-      closeSheet(); toast('Eintrag geändert'); render();
+      toast('Eintrag geändert'); render(); openDayFood(ds);
     },
-    delEntry: () => { removeFood(x.id); closeSheet(); toast('Eintrag gelöscht'); render(); },
+    delEntry: () => { removeFood(x.id); toast('Eintrag gelöscht'); render(); openDayFood(ds); },
+    backDay: () => openDayFood(ds),
   });
 }
 
