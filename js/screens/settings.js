@@ -3,7 +3,7 @@
 // =============================================================
 
 import { go, render, ask, toast, openSheet } from '../app.js';
-import { data, importJSON, removeCustomExercise, wipeAll, setWeightUnit } from '../store.js';
+import { data, importJSON, removeCustomExercise, wipeAll, resetTraining, setWeightUnit } from '../store.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
 import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
 import { esc, dateStr, APP_VERSION, fmtDateLong } from '../util.js';
@@ -56,6 +56,7 @@ export const settingsScreen = {
             ${data.sessions.length} gespeicherte Workouts${first ? ` · Plan seit ${fmtDateLong(first)}` : ''}<br>
             Version ${APP_VERSION}
           </p>
+          <button class="btn ghost full" data-action="resetTraining">Training neu starten</button>
           <button class="btn ghost danger full" data-action="wipe">Alle Daten löschen</button>
         </section>
       </main>
@@ -127,6 +128,17 @@ export const settingsScreen = {
       render();
     },
 
+    resetTraining: async () => {
+      if (!data.sessions.length) return toast('Noch keine Workouts – du startest schon bei null');
+      if (!(await ask('Training neu starten?', `Alle ${data.sessions.length} Workouts, Rekorde, Streak und Kraftverlauf werden gelöscht – du startest bei null. Dein Plan, Freunde, Ernährung, Supplements und Körpergewicht bleiben. Vorher wird eine Sicherung gemacht.`, 'Neu starten', true))) return;
+      await autoBackup('-vor-neustart');
+      resetTraining();
+      discardActive();
+      import('../friends.js').then((f) => f.publishMe(true)).catch(() => {}); // Rangliste: auch für Freunde bei null
+      toast('Neustart – viel Erfolg!');
+      go('home');
+    },
+
     wipe: async () => {
       if (!(await ask('Alle Daten löschen?', 'Plan, Workouts und eigene Übungen werden gelöscht. Ein letzter Schnappschuss bleibt unter „Datensicherung“ erhalten.', 'Alles löschen', true))) return;
       await autoBackup('-vor-loeschen');
@@ -168,7 +180,7 @@ async function fillSnapshots(root) {
   if (!ul.isConnected) return;
   ul.innerHTML = list.length ? list.map((sn) => {
     const label = new Date(sn.at).toLocaleString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const tag = sn.id.includes('-vor-loeschen') ? ' · vor dem Löschen' : sn.id.includes('-vorher') ? ' · vor Wiederherstellung' : '';
+    const tag = sn.id.includes('-vor-loeschen') ? ' · vor dem Löschen' : sn.id.includes('-vor-neustart') ? ' · vor dem Neustart' : sn.id.includes('-vorher') ? ' · vor Wiederherstellung' : '';
     return `<li><span>${esc(label)}<br><span class="muted small">${sn.sessions} Workouts${tag}</span></span>
       <button class="chip" data-action="restore" data-id="${esc(sn.id)}">Wiederherstellen</button></li>`;
   }).join('') : '<li class="muted small">Noch keine – die erste entsteht, sobald du einen Plan oder ein Workout hast.</li>';

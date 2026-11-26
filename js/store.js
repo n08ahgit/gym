@@ -335,6 +335,20 @@ export function importJSON(text) {
   saveActive(parsed.active && Array.isArray(parsed.active.items) ? parsed.active : null);
 }
 
+/**
+ * Training neu starten: Workouts weg (damit Rekorde, Streak, Jahresansicht,
+ * Kraftverlauf), Plan bleibt – gilt ab heute, damit alte Tage nicht als
+ * „verpasst“ zählen. Alles andere (Freunde, Ernährung, Supplements,
+ * Körpergewicht, eigene Übungen) bleibt.
+ */
+export function resetTraining() {
+  const cur = currentVersion();
+  data.sessions = [];
+  data.planVersions = cur ? [{ ...clone(cur), from: dateStr() }] : [];
+  localStorage.removeItem(ACTIVE_KEY);
+  save();
+}
+
 export function wipeAll() {
   const keep = data.profile;
   data = emptyData();
