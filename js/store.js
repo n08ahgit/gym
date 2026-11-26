@@ -26,7 +26,8 @@
 //   water: [ { id, t, date, ml } ],
 //   meals: [ { id, name, servings, items: [ { food (Werte je 100 g), g } ] } ],  // eigene Gerichte
 //   nutrition: { sex, age, height, weight, bodyFat?, job, steps?, trainDays, trainMin, sport, sportHours, level, goal, targetWeight?, targetDate?, kcal?, adjust? },
-//   settings: { bar: 20, unit: 'kg'|'lb', removed: [codes] }           // Stangengewicht, entfernte Freunde
+//   settings: { bar: 20, unit: 'kg'|'lb', exUnit: { exId: 'kg'|'lb' }, removed: [codes] }
+//   Sätze speichern w immer in kg, dazu u = Einheit, in der eingegeben wurde.           // Stangengewicht, entfernte Freunde
 // }
 //
 // Laufendes Workout separat unter "gym.active.v1" (siehe workout.js).
@@ -104,6 +105,13 @@ function loadData() {
 /** Live-Daten. Andere Module lesen "data" direkt (ES-Module = Live-Binding). */
 export let data = loadData();
 units.w = data.settings.unit === 'lb' ? 'lb' : 'kg';
+
+/** Einheit einer Übung (pro Übung wählbar, z. B. Kabelturm in lb), sonst Standard. */
+export const exUnit = (exId) => data.settings.exUnit?.[exId] || units.w;
+export function setExUnit(exId, u) {
+  data.settings.exUnit = { ...(data.settings.exUnit || {}), [exId]: u === 'lb' ? 'lb' : 'kg' };
+  save();
+}
 
 /** Gewichtseinheit umstellen (Anzeige/Eingabe; gespeichert wird weiter in kg). */
 export function setWeightUnit(u) {

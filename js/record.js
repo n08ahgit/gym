@@ -6,12 +6,13 @@
 // (antippen schließt sofort). Ein kurzer Ton, falls Ton an ist.
 // =============================================================
 
-import { esc, fmtNum, fmtW } from './util.js';
+import { esc, fmtNum, fmtWU, units } from './util.js';
 import { ICON } from './screens/icons.js';
 
 let current = null;
 
-export function showRecord({ name, w, r, kind, value, gain }) {
+export function showRecord({ name, w, r, kind, value, gain, u }) {
+  const fmtW = (kg) => fmtWU(kg, u || units.w);
   current?.remove();
   const el = document.createElement('div');
   el.className = 'record';

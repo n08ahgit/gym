@@ -2,7 +2,7 @@
 // util.js – kleine Hilfsfunktionen (Datum, Formatierung, Escaping)
 // =============================================================
 
-export const APP_VERSION = '3.14.0';
+export const APP_VERSION = '3.15.0';
 
 export const WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 export const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -133,14 +133,24 @@ export function fmtW(kg, withUnit = true) {
   const v = units.w === 'lb' ? Math.round(kg * LB_PER_KG * 2) / 2 : Math.round(kg * 100) / 100;
   return `${fmtNum(v)}${withUnit ? ` ${units.w}` : ''}`;
 }
+// Mit fester Einheit (pro Übung wählbar, z. B. Kabelturm in lb)
+export const toU = (kg, u) => (kg == null ? kg : u === 'lb' ? kg * LB_PER_KG : kg);
+export const fromU = (v, u) => (v == null || Number.isNaN(v) ? v : u === 'lb' ? v / LB_PER_KG : v);
+export function fmtWU(kg, u, withUnit = true) {
+  if (kg == null) return '–';
+  const v = u === 'lb' ? Math.round(kg * LB_PER_KG * 2) / 2 : Math.round(kg * 100) / 100;
+  return `${fmtNum(v)}${withUnit ? ` ${u === 'lb' ? 'lb' : 'kg'}` : ''}`;
+}
+
 /** Großes Volumen: 12.450 kg / 12,5 t bzw. 27.450 lb. */
 export function fmtVol(kg) {
   if (units.w === 'lb') return `${fmtBig(kg * LB_PER_KG)} lb`;
   return kg >= 10000 ? `${fmtNum(Math.round(kg / 100) / 10)} t` : `${fmtBig(kg)} kg`;
 }
 
-/** Satz als Text: "80 × 8" bzw. einseitig "20 × 10/9" (links/rechts). */
-export function fmtSet(s, sep = ' × ') {
-  const w = s.w == null ? '–' : fmtW(s.w, false);
+/** Satz als Text: "80 × 8" bzw. einseitig "20 × 10/9" (links/rechts). u = Einheit erzwingen, sonst die des Satzes. */
+export function fmtSet(s, sep = ' × ', u = null) {
+  const unit = u || s.u || units.w;
+  const w = s.w == null ? '–' : fmtWU(s.w, unit, false);
   return s.rl != null ? `${w}${sep}${fmtNum(s.rl)}/${fmtNum(s.rr)}` : `${w}${sep}${fmtNum(s.r)}`;
 }

@@ -15,11 +15,11 @@
 // =============================================================
 
 import { go, render, transition, ui, openSheet, closeSheet, ask, toast, syncWakeLock } from '../app.js';
-import { loadActive, saveActive, lastDoneSets, addSession } from '../store.js';
+import { loadActive, saveActive, lastDoneSets, addSession, exUnit, setExUnit } from '../store.js';
 import { getExercise, muscleNames } from '../exercises.js';
 import { bodyImage } from '../bodyimage.js';
 import { beep } from '../audio.js';
-import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet, fmtW, fromW, wu, fmtVol } from '../util.js';
+import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet, fmtWU, fromU, fmtVol } from '../util.js';
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';
@@ -98,11 +98,11 @@ function toSummary() {
 }
 
 /** Satz erledigt (Werte schon geprüft). Rückgabe: Rekord oder null. */
-function completeSet(w, r, sides = null) {
+function completeSet(w, r, sides = null, u = null) {
   const it = curItem();
   // Einseitig: r = schwächere Seite (zählt für Rekord/Steigerung), rl/rr = beide Seiten
   const rec = checkRecord(it.exId, w, r, it.results);
-  it.results[active.cur.set] = { w, r, ...(sides ? { rl: sides[0], rr: sides[1] } : {}), status: 'done', ...(rec ? { pr: 1 } : {}) };
+  it.results[active.cur.set] = { w, r, ...(u && w != null ? { u } : {}), ...(sides ? { rl: sides[0], rr: sides[1] } : {}), status: 'done', ...(rec ? { pr: 1 } : {}) };
   const restDefault = it.rest;
   advance();
   if (isFinished()) toSummary();
@@ -111,7 +111,7 @@ function completeSet(w, r, sides = null) {
     active.restDefault = restDefault;
   } else active.phase = 'exercise';
   persist();
-  return rec ? { ...rec, name: it.name, w, r } : null;
+  return rec ? { ...rec, name: it.name, w, r, u } : null;
 }
 
 function skipSet() {
@@ -232,6 +232,7 @@ function nextUpHtml() {
 function viewExercise() {
   const it = curItem();
   const s = active.cur.set;
+  const u = exUnit(it.exId);
   const last = lastFor(it.exId, s);
   // Platzhalter: letztes Mal, sonst der vorige Satz von heute
   const prevToday = it.results.slice(0, s).reverse().find((r) => r?.status === 'done');
@@ -243,7 +244,7 @@ function viewExercise() {
   }).join('');
   const todaySets = it.results
     .filter((r) => r?.status === 'done')
-    .map((r) => fmtSet(r))
+    .map((r) => fmtSet(r, ' × ', u))
     .join(' · ');
 
   return `${topbar(`Übung ${active.cur.ex + 1} von ${active.items.length}`)}
@@ -256,9 +257,9 @@ function viewExercise() {
       <p class="ex-muscles">${esc(muscleNames(it.primary))}${movable().length > 1 ? ` · <button class="text-btn order-link" data-action="order">${ICON.swap} Reihenfolge</button>` : ''}</p>
       ${bodyImage(it.primary, it.secondary)}
       <div class="set-head"><span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
-      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last).replace(' × ', ` ${wu()} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
+      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last, ' × ', u).replace(' × ', ` ${u} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
       <div class="inputs${it.uni ? ' uni' : ''}">
-        <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtW(ph.w, false) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusReps"><span>${wu()}</span></label>
+        <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtWU(ph.w, u, false) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusReps"><button class="unit-toggle" data-action="unitToggle" aria-label="Einheit für diese Übung: ${u} – antippen zum Wechseln">${u}</button></label>
         ${it.uni
           ? `<label class="field side"><input id="inRL" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rl ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusRight"><span>Links</span></label>
              <label class="field side"><input id="inRR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rr ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Rechts</span></label>`
@@ -445,7 +446,8 @@ export const workoutScreen = {
         const p = parseNum(el.placeholder);
         return p ? p : null;
       };
-      const w = fromW(read(inW)); // Eingabe in kg oder lb → gespeichert wird kg
+      const u = exUnit(curItem().exId);
+      const w = fromU(read(inW), u); // Eingabe in kg oder lb (pro Übung) → gespeichert wird kg
       let r, sides = null;
       if (curItem().uni) {
         const rl = read(document.getElementById('inRL')), rr = read(document.getElementById('inRR'));
@@ -459,7 +461,7 @@ export const workoutScreen = {
       }
       if (Number.isNaN(w)) return toast('Bitte gültige Zahlen eingeben');
       document.activeElement?.blur();
-      const rec = completeSet(w, r, sides);
+      const rec = completeSet(w, r, sides, u);
       transition(render);
       window.scrollTo(0, 0);
       if (rec) setTimeout(() => showRecord(rec), 350);
@@ -471,7 +473,7 @@ export const workoutScreen = {
     useSug: () => {
       const sug = suggest(curItem().exId);
       const inW = document.getElementById('inW');
-      if (sug.w != null) inW.value = fmtW(sug.w, false);
+      if (sug.w != null) inW.value = fmtWU(sug.w, exUnit(curItem().exId), false);
       if (sug.target != null) ['inR', 'inRL', 'inRR'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = sug.target; });
       toast('Vorschlag übernommen');
     },
@@ -479,8 +481,25 @@ export const workoutScreen = {
     plates: () => {
       const v = parseNum(document.getElementById('inW')?.value);
       const ph = parseNum(document.getElementById('inW')?.placeholder);
+      const u = exUnit(curItem().exId);
       const sw = suggest(curItem().exId).w;
-      openPlates(v || (sw != null ? Number(fmtW(sw, false).replace(',', '.')) : 0) || ph || null);
+      openPlates(v || (sw != null ? Number(fmtWU(sw, u, false).replace(/\./g, '').replace(',', '.')) : 0) || ph || null, u);
+    },
+
+    // kg ⇄ lb für diese Übung (z. B. Kabelturm in Pfund); eingetippter Wert wird umgerechnet
+    unitToggle: (el, ev) => {
+      ev?.preventDefault?.();
+      const it = curItem();
+      const old = exUnit(it.exId), nu = old === 'lb' ? 'kg' : 'lb';
+      const inW = document.getElementById('inW');
+      const typed = parseNum(inW?.value);
+      const keep = { r: document.getElementById('inR')?.value, rl: document.getElementById('inRL')?.value, rr: document.getElementById('inRR')?.value };
+      setExUnit(it.exId, nu);
+      render();
+      const w2 = document.getElementById('inW');
+      if (w2 && typed != null && !Number.isNaN(typed)) w2.value = fmtWU(fromU(typed, old), nu, false);
+      [['inR', keep.r], ['inRL', keep.rl], ['inRR', keep.rr]].forEach(([id, v]) => { const e = document.getElementById(id); if (e && v) e.value = v; });
+      toast(`${it.name}: ${nu === 'lb' ? 'Pfund (lb)' : 'Kilogramm (kg)'}`);
     },
 
     skipSet: () => { skipSet(); transition(render); },

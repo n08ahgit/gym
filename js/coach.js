@@ -19,10 +19,10 @@
 //   steigern, wird das obere Ende in allen Sätzen erreicht, Gewicht hoch.
 // =============================================================
 
-import { data } from './store.js';
+import { data, exUnit } from './store.js';
 import { e1rm } from './stats.js';
 import { getExercise } from './exercises.js';
-import { fmtNum, fmtW, toW, fromW, wu } from './util.js';
+import { fmtNum, fmtWU, toU, fromU } from './util.js';
 
 // ---------- Übungsarten ----------
 
@@ -95,14 +95,14 @@ function stepForLb(exId, lb) {
 
 /** Neues Gewicht (kg) = altes + Sprung, gerundet auf das, was es in der gewählten Einheit wirklich gibt. */
 function raise(exId, wKg, times) {
-  if (wu() === 'lb') {
-    const lb = toW(wKg);
-    return fromW(roundTo(lb + stepForLb(exId, lb) * times, 2.5));
+  if (exUnit(exId) === 'lb') {
+    const lb = toU(wKg, 'lb');
+    return fromU(roundTo(lb + stepForLb(exId, lb) * times, 2.5), 'lb');
   }
   const eq = equipment(exId);
   return roundTo(wKg + stepFor(exId, wKg) * times, eq === 'dumbbell' && wKg < 20 ? 1 : 1.25);
 }
-const lower10 = (wKg) => (wu() === 'lb' ? fromW(roundTo(toW(wKg) * 0.9, 5)) : roundTo(wKg * 0.9, 1.25));
+const lower10 = (exId, wKg) => (exUnit(exId) === 'lb' ? fromU(roundTo(toU(wKg, 'lb') * 0.9, 5), 'lb') : roundTo(wKg * 0.9, 1.25));
 
 // ---------- Verlauf ----------
 
@@ -130,6 +130,8 @@ function working(sets) {
  *   kind: 'start' | 'up' | 'reps' | 'hold' | 'down' | 'time'
  */
 export function suggest(exId) {
+  const u = exUnit(exId);
+  const fmtW = (kg) => fmtWU(kg, u);
   const range = repRange(exId);
   const hist = recent(exId, 3);
   if (!range) {
@@ -149,7 +151,7 @@ export function suggest(exId) {
 
   // Körpergewicht ohne Zusatzlast: erst Wiederholungen, dann Zusatzgewicht
   if (!last.w) {
-    if (last.min >= hi) return { kind: 'up', w: wu() === 'lb' ? fromW(5) : 2.5, reps: [lo, hi], target: lo + 2, head: wu() === 'lb' ? '+5 lb Zusatzgewicht' : '+2,5 kg Zusatzgewicht',
+    if (last.min >= hi) return { kind: 'up', w: u === 'lb' ? fromU(5, 'lb') : 2.5, reps: [lo, hi], target: lo + 2, head: u === 'lb' ? '+5 lb Zusatzgewicht' : '+2,5 kg Zusatzgewicht',
       why: `Alle Sätze mit ${hi}+ Wdh. – Zeit für Zusatzgewicht (Gürtel, Weste oder Kurzhantel).` };
     return { kind: 'reps', w: null, reps: [lo, hi], target: Math.min(hi, last.max + 1), head: `${Math.min(hi, last.max + 1)} Wdh. anpeilen`,
       why: `Letztes Mal ${last.reps.join(' / ')} Wdh. – jeweils eine mehr schaffen.` };
@@ -171,7 +173,7 @@ export function suggest(exId) {
   const justRaised = prev && prev.w < last.w;
   const twiceLow = prev && prev.w === last.w && prev.min < lo;
   if (twiceLow) {
-    const w = lower10(last.w);
+    const w = lower10(exId, last.w);
     return { kind: 'down', w, reps: [lo, hi], target: lo + 2, head: `${fmtW(w)} × ${lo + 2}`,
       why: `Zweimal unter ${lo} Wdh. bei ${fmtW(last.w)} → ca. 10 % leichter und sauber neu aufbauen.` };
   }

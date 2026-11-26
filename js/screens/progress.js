@@ -11,8 +11,8 @@
 // =============================================================
 
 import { go, render, ui, openSheet, closeSheet, toast } from '../app.js';
-import { data, setBodyWeight } from '../store.js';
-import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum, fmtSet, fmtW, toW, fromW, wu, fmtVol } from '../util.js';
+import { data, setBodyWeight, exUnit } from '../store.js';
+import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum, fmtSet, fmtW, fmtWU, toU, toW, fromW, wu, fmtVol } from '../util.js';
 import { bodyTrend } from '../coach.js';
 import { MUSCLES, getExercise } from '../exercises.js';
 import { RANGES, overview, weekly, strength, muscleSets, records, exerciseHistory, funFacts } from '../stats.js';
@@ -84,12 +84,12 @@ export const progressScreen = {
 
     // 3. Kraft
     const strengthRows = str.slice(0, 8).map((e) => {
-      const ch = e.change;
-      const chTxt = Math.abs(ch) < 0.25 ? 'unverändert' : `${ch > 0 ? '+' : '−'}${fmtW(Math.abs(ch))}`;
+      const ch = e.change, u = exUnit(e.exId);
+      const chTxt = Math.abs(ch) < 0.25 ? 'unverändert' : `${ch > 0 ? '+' : '−'}${fmtWU(Math.abs(ch), u)}`;
       return `<button class="list-row" data-action="exercise" data-id="${esc(e.exId)}">
         <span class="lr-main"><span class="lr-title">${esc(e.name)}</span><span class="lr-sub">${e.inRange.length}× trainiert · ${chTxt}</span></span>
-        ${sparkline(e.inRange.map((p) => toW(p.value)))}
-        <span class="lr-value">${fmtW(e.last, false)}<small> ${wu()}</small></span>
+        ${sparkline(e.inRange.map((p) => toU(p.value, u)))}
+        <span class="lr-value">${fmtWU(e.last, u, false)}<small> ${u}</small></span>
         <span class="chev">${ICON.chev}</span></button>`;
     }).join('');
     const strengthCard = `<section class="card list-card">
@@ -114,7 +114,7 @@ export const progressScreen = {
     // 5. Rekorde
     const recRows = recs.map((r) => `<div class="list-row static">
       <span class="lr-main"><span class="lr-title">${esc(r.name)}</span><span class="lr-sub">${fmtDateLong(r.date)}</span></span>
-      <span class="lr-value">${fmtW(r.w, false)} × ${fmtNum(r.r)}<small class="up"> +${fmtW(r.gain)}</small></span></div>`).join('');
+      <span class="lr-value">${fmtWU(r.w, exUnit(r.exId), false)} × ${fmtNum(r.r)}<small class="up"> +${fmtWU(r.gain, exUnit(r.exId))}</small></span></div>`).join('');
     const recCard = `<section class="card list-card"><div class="card-head"><h2>Rekorde</h2><span class="muted small">neue Bestwerte</span></div>
       ${recRows || '<p class="muted small pad">Noch keine Rekorde – die kommen beim zweiten Training einer Übung.</p>'}</section>`;
 
@@ -181,21 +181,23 @@ export const exstatScreen = {
     const valid = rows.filter((r) => r.value > 0);
     const best = valid.reduce((a, b) => (b.value > (a?.value || 0) ? b : a), null);
     const last = rows[rows.length - 1];
+    const u = exUnit(exId);
+    const fmtW = (kg) => fmtWU(kg, u);
 
     let chart = '<p class="muted small pad">Für einen Verlauf braucht es mindestens zwei Trainings mit Gewicht.</p>';
     if (valid.length >= 2) {
       const t0 = parseDate(valid[0].date).getTime(), t1 = parseDate(valid[valid.length - 1].date).getTime();
       const pts = valid.map((r) => ({
         x: t1 > t0 ? (parseDate(r.date).getTime() - t0) / (t1 - t0) : 0.5,
-        v: toW(r.value),
-        tip: `${fmtDateLong(r.date)} · ${fmtW(r.value)} (${fmtSet(r.best)})`,
+        v: toU(r.value, u),
+        tip: `${fmtDateLong(r.date)} · ${fmtW(r.value)} (${fmtSet(r.best, ' × ', u)})`,
       }));
       chart = lineChart(pts) + `<div class="axis-dates"><span>${shortDate(valid[0].date)}</span><span>${shortDate(valid[valid.length - 1].date)}</span></div>`;
     }
 
     const hist = rows.slice().reverse().map((r) => `<div class="hist-row">
       <span class="hist-date">${fmtDateLong(r.date)}</span>
-      <span class="hist-sets">${r.sets.map((s) => fmtSet(s, '×')).join(' · ')}</span></div>`).join('');
+      <span class="hist-sets">${r.sets.map((s) => fmtSet(s, '×', u)).join(' · ')}</span></div>`).join('');
 
     return `<header class="topbar">
         <button class="glass-circle" data-action="back" aria-label="Zurück">${ICON.back}</button>
@@ -203,12 +205,12 @@ export const exstatScreen = {
       </header>
       <main class="content">
         <div class="tiles three">
-          ${tile('Bestwert', best ? fmtW(best.value) : '–', best ? fmtSet(best.best) : '')}
-          ${tile('Zuletzt', last?.best ? fmtSet(last.best) : '–', last ? shortDate(last.date) : '')}
+          ${tile('Bestwert', best ? fmtW(best.value) : '–', best ? fmtSet(best.best, ' × ', u) : '')}
+          ${tile('Zuletzt', last?.best ? fmtSet(last.best, ' × ', u) : '–', last ? shortDate(last.date) : '')}
           ${tile('Trainings', rows.length)}
         </div>
         <section class="card"><div class="card-head"><h2>Verlauf</h2><span class="muted small">geschätztes Maximum (1 Wdh)</span></div>${chart}</section>
-        <section class="card list-card"><div class="card-head"><h2>Alle Trainings</h2><span class="muted small">kg × Wdh</span></div>${hist}</section>
+        <section class="card list-card"><div class="card-head"><h2>Alle Trainings</h2><span class="muted small">${u} × Wdh</span></div>${hist}</section>
       </main>`;
   },
 

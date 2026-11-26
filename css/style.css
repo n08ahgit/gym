@@ -905,3 +905,8 @@ html[data-nav="unzoom"]::view-transition-new(root) { animation: vt-recede 380ms 
   #toast { transform: translate(-50%, 0); }
 }
 @media (prefers-reduced-transparency: reduce) { body::before { -webkit-backdrop-filter: none; backdrop-filter: none; } }
+
+/* kg/lb pro Übung umschalten (z. B. Kabelturm in Pfund) */
+.field .unit-toggle { flex: none; min-width: 44px; min-height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--accent); font: inherit; font-size: 0.882rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform .12s ease, background-color .15s ease; }
+.field .unit-toggle:active { transform: scale(.94); }
+.inputs.uni .field .unit-toggle { min-width: 40px; padding: 0 8px; font-size: 0.8rem; }

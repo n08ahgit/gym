@@ -37,8 +37,8 @@ export function openExerciseInfo(exId, fallbackName = '') {
 }
 
 /** Scheibenrechner: welche Scheiben pro Seite? total = Gesamtgewicht in der gewählten Einheit (kg oder lb). */
-export function openPlates(startTotal) {
-  const lb = wu() === 'lb';
+export function openPlates(startTotal, u = wu()) {
+  const lb = u === 'lb';
   const unit = lb ? 'lb' : 'kg';
   const set = lb ? PLATES_LB : PLATES;
   const bars = lb ? [45, 35, 25] : [20, 15, 10];
