@@ -7,6 +7,7 @@ import { data, importJSON, removeCustomExercise, wipeAll } from '../store.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
 import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
 import { esc, dateStr, APP_VERSION, fmtDateLong } from '../util.js';
+import { PUSH_SERVER } from '../push-config.js';
 import { muscleNames } from '../exercises.js';
 import { discardActive } from './workout.js';
 import { ICON } from './icons.js';
@@ -37,6 +38,15 @@ export const settingsScreen = {
         ${pushCard()}
 
         <section class="card">
+          <h3 class="section-title first">Verbesserungsvorschlag</h3>
+          <p class="muted small">Was fehlt dir, was nervt, was soll besser werden? Jeder Vorschlag wird gelesen.</p>
+          <textarea id="fbText" class="input fb-text" rows="4" maxlength="2000" placeholder="z. B. „Ich hätte gern …“"></textarea>
+          <input id="fbName" class="input fb-name" maxlength="40" placeholder="Dein Name (optional)" value="${esc(data.profile.name || '')}" autocomplete="off">
+          <input id="fbWebsite" class="fb-trap" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button class="btn primary big full" data-action="sendFeedback">Vorschlag senden</button>
+        </section>
+
+        <section class="card">
           <h3 class="section-title first">Eigene Übungen</h3>
           ${custom ? `<ul class="plain-list">${custom}</ul>` : '<p class="muted small">Noch keine. Anlegen über „Übung hinzufügen“ im Plan.</p>'}
         </section>
@@ -62,6 +72,24 @@ export const settingsScreen = {
     back: () => go('home'),
 
     export: async () => { if (await exportFile()) render(); },
+
+    sendFeedback: async (el) => {
+      const text = document.getElementById('fbText').value.trim();
+      if (text.length < 3) return toast('Bitte kurz beschreiben, was du dir wünschst');
+      el.disabled = true;
+      try {
+        const r = await fetch(`${PUSH_SERVER}/feedback`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, name: document.getElementById('fbName').value.trim(), version: APP_VERSION, website: document.getElementById('fbWebsite').value }),
+        });
+        if (!r.ok) throw new Error();
+        document.getElementById('fbText').value = '';
+        toast('Danke! Dein Vorschlag ist angekommen.');
+      } catch {
+        toast('Senden hat nicht geklappt – Internet prüfen und nochmal versuchen');
+      }
+      el.disabled = false;
+    },
 
     pushOn: async () => {
       try { await pushEnable(); toast('Mitteilungen an'); render(); } catch (e) { toast(e.message); }
