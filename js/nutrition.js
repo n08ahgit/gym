@@ -1,61 +1,88 @@
 // =============================================================
-// nutrition.js – Kalorien & Makros: Ziele, Einträge, Lebensmittel
+// nutrition.js – Kalorien, Makros, Wasser, Ernährungsqualität
 //
-// Ziel-Berechnung (Stand der Forschung):
-// - Grundumsatz nach Mifflin-St Jeor (genaueste Formel ohne Messung).
-// - Gesamtbedarf = Grundumsatz × Aktivitätsfaktor.
-// - Aufbau: +10 % (≈ +250–350 kcal) → ca. +0,25–0,5 % Körpergewicht/Woche
-//   (Iraki et al. 2019). Diät: −20 % → ca. 0,5–1 %/Woche, Muskeln bleiben.
-// - Protein: 1,6–2,2 g/kg reichen für maximalen Muskelaufbau (Morton et al.
-//   2018); hier 1,8 g/kg (Aufbau/Halten) bzw. 2,2 g/kg (Diät).
-// - Fett mind. ~0,8 g/kg (Hormone), Rest Kohlenhydrate (Trainingsleistung).
-// Nährwerte der eingebauten Liste: Durchschnittswerte pro 100 g (ca.).
+// Bedarf (geschätzt, wird später durch deine echten Daten korrigiert):
+//   Grundumsatz  Mifflin-St Jeor; mit Körperfettanteil Katch-McArdle
+//                (370 + 21,6 × fettfreie Masse) – genauer bei Sportlern.
+//   Alltag       PAL nach DGE (Schüler/Studenten 1,6–1,7, Büro 1,4–1,5,
+//                stehend/gehend 1,8–1,9, schwere Arbeit 2,0–2,4) oder
+//                aus Schritten pro Tag (genauer, z. B. aus der Health-App).
+//   Training     MET-Werte nach Compendium of Physical Activities (2024):
+//                Netto-Verbrauch = (MET − 1) × kg × Stunden.
+//   Gemessen     Sobald genug Daten da sind (≥ 14 Tage Essen + Gewicht):
+//                echter Bedarf = Ø gegessen − Gewichtsänderung × 7.700 kcal/kg.
+//                Das ist genauer als jede Formel.
+// Ziel-Tempo:   Aufbau nach Erfahrung (Aragon): Anfänger ~0,4 %, Fortgeschr.
+//                ~0,25 %, Erfahrene ~0,15 % Körpergewicht/Woche. Diät 0,7 %
+//                (max. ~1 %/Woche, sonst Muskelverlust). Optional: Zielgewicht
+//                bis Datum → nötiges Tempo wird berechnet und geprüft.
+// Protein:      1,8 g/kg (Morton 2018: Plateau ab ~1,6, bis 2,2); Diät 2,2 g/kg.
+//                Mit KFA: 2,2 bzw. 2,6 g/kg fettfreie Masse.
+// Fett ≥ 0,8 g/kg bzw. 25 % kcal; Ballaststoffe ≥ 30 g (DGE);
+// freier Zucker < 10 % kcal (WHO); gesättigte Fette < 10 % kcal;
+// Gemüse 400 g + Obst 250 g (DGE); Wasser: EFSA 2,5 L (m) / 2,0 L (w)
+// gesamt, davon ~80 % trinken, + ~0,5 L je Trainingsstunde.
+// Nährwerte der eingebauten Liste: Durchschnittswerte je 100 g (ca.).
 // =============================================================
 
-import { data, save } from './store.js';
-import { addDays, dateStr, uid } from './util.js';
+import { data, save, sessionsByDate, currentVersion, plannedOf } from './store.js';
+import { addDays, dateStr, uid, parseDate } from './util.js';
 import { bodyTrend } from './coach.js';
 
-export const ACTIVITY = [
-  [1.4, 'Wenig', 'Bürojob/Schule, 1–2× Training'],
-  [1.55, 'Normal', '3–4× Training pro Woche'],
-  [1.7, 'Viel', '5–6× Training oder Training + Sport'],
-  [1.9, 'Sehr viel', 'Täglich hart + körperliche Arbeit'],
+const KCAL_PER_KG = 7700;
+
+export const JOBS = [
+  [1.4, 'Überwiegend sitzend', 'Büro, viel Sitzen'],
+  [1.6, 'Sitzend, gehend, stehend', 'Schule, Studium, gemischt'],
+  [1.8, 'Viel stehend und gehend', 'Verkauf, Kellnern, Handwerk'],
+  [2.1, 'Körperlich schwer', 'Bau, Landwirtschaft, Lager'],
 ];
-export const GOALS = { bulk: ['Aufbau', 1.1, 1.8], keep: ['Halten', 1.0, 1.8], cut: ['Diät', 0.8, 2.2] };
+export const SPORTS = { none: ['Keine', 0], fussball: ['Fußball', 8], laufen: ['Laufen', 9], schwimmen: ['Schwimmen', 7], rad: ['Radfahren', 7], kampf: ['Kampfsport', 10], andere: ['Andere', 6] };
+export const LEVELS = { beginner: ['Anfänger', 0.4, '< 1 Jahr'], intermediate: ['Fortgeschritten', 0.25, '1–3 Jahre'], advanced: ['Erfahren', 0.15, '> 3 Jahre'] };
+export const GOALS = { bulk: ['Aufbau'], keep: ['Halten'], cut: ['Diät'] };
+const LIFT_MET = 5; // Krafttraining inkl. Satzpausen (Compendium: 3,5–6)
 
 // prettier-ignore
-// [Name, kcal, Protein, Kohlenhydrate, Fett (je 100 g), Portion in g, Portions-Name]
+// [Name, kcal, Protein, KH, Fett, Ballaststoffe, Zucker, ges. Fett (je 100 g), Portion g, Portion, Kategorie]
+// Kategorie: v = Gemüse/Hülsenfrüchte, o = Obst, j = Saft, d = Milchprodukt, '' = sonstiges
 const RAW = [
-  ['Haferflocken', 370, 13.5, 59, 7, 60, 'Portion'], ['Reis (gekocht)', 130, 2.7, 28, 0.3, 200, 'Teller'],
-  ['Reis (roh)', 350, 7, 78, 0.6, 80, 'Portion'], ['Nudeln (gekocht)', 150, 5.5, 29, 0.9, 250, 'Teller'],
-  ['Nudeln (roh)', 360, 12, 72, 1.5, 100, 'Portion'], ['Kartoffeln (gekocht)', 72, 2, 15, 0.1, 250, 'Portion'],
-  ['Süßkartoffel', 86, 1.6, 20, 0.1, 200, 'Stück'], ['Vollkornbrot', 220, 7.5, 40, 1.5, 50, 'Scheibe'],
-  ['Toastbrot', 260, 8, 48, 3.5, 25, 'Scheibe'], ['Brötchen', 270, 9, 53, 1.5, 60, 'Stück'],
-  ['Hähnchenbrust (roh)', 105, 23, 0, 1.2, 200, 'Portion'], ['Hähnchenbrust (gebraten)', 150, 30, 0, 3, 150, 'Portion'],
-  ['Putenbrust', 107, 24, 0, 1, 150, 'Portion'], ['Rinderhack', 250, 18, 0, 20, 125, 'Portion'],
-  ['Rindersteak', 140, 22, 0, 5, 200, 'Steak'], ['Lachs', 200, 20, 0, 13, 125, 'Filet'],
-  ['Thunfisch (Dose, Wasser)', 110, 25, 0, 1, 130, 'Dose'], ['Ei', 155, 13, 1, 11, 60, 'Stück'],
-  ['Eiklar', 48, 11, 0.7, 0.2, 100, 'Portion'], ['Magerquark', 67, 12, 4, 0.2, 250, 'Becher'],
-  ['Skyr', 63, 11, 4, 0.2, 150, 'Becher'], ['Hüttenkäse', 100, 12, 3, 4.5, 200, 'Becher'],
-  ['Griechischer Joghurt', 120, 4, 4, 10, 150, 'Portion'], ['Milch 1,5 %', 47, 3.4, 4.8, 1.5, 250, 'Glas'],
-  ['Gouda', 360, 25, 0, 28, 30, 'Scheibe'], ['Mozzarella', 250, 18, 1, 19, 125, 'Kugel'],
-  ['Whey-Protein (Pulver)', 380, 75, 8, 6, 30, 'Shake'], ['Tofu', 120, 13, 1.5, 7, 200, 'Packung'],
-  ['Linsen (gekocht)', 115, 9, 17, 0.4, 200, 'Portion'], ['Kichererbsen (gekocht)', 140, 8, 20, 2.5, 150, 'Portion'],
-  ['Banane', 95, 1.1, 21, 0.3, 120, 'Stück'], ['Apfel', 52, 0.3, 11.4, 0.2, 150, 'Stück'],
-  ['Beeren (TK)', 45, 1, 8, 0.4, 150, 'Portion'], ['Brokkoli', 34, 2.8, 4, 0.4, 200, 'Portion'],
-  ['Gemüse gemischt', 40, 2, 6, 0.4, 200, 'Portion'], ['Avocado', 160, 2, 2, 15, 80, 'Hälfte'],
-  ['Erdnussbutter', 600, 25, 13, 50, 20, 'Löffel'], ['Mandeln', 600, 21, 6, 52, 30, 'Handvoll'],
-  ['Olivenöl', 884, 0, 0, 100, 10, 'Esslöffel'], ['Butter', 740, 0.7, 0.6, 82, 10, 'Portion'],
-  ['Honig', 305, 0.4, 76, 0, 20, 'Löffel'], ['Reiswaffel', 380, 8, 80, 3, 8, 'Stück'],
-  ['Pizza (TK)', 250, 10, 30, 10, 350, 'Pizza'], ['Döner', 215, 12, 20, 10, 350, 'Stück'],
-  ['Pommes', 290, 3.5, 36, 15, 150, 'Portion'], ['Burger', 250, 13, 24, 11, 250, 'Stück'],
-  ['Schokolade', 540, 6, 57, 31, 25, 'Riegel'], ['Proteinriegel', 360, 33, 35, 10, 60, 'Riegel'],
-  ['Cola', 42, 0, 10.6, 0, 330, 'Dose'], ['Orangensaft', 45, 0.7, 10, 0.2, 250, 'Glas'],
+  ['Haferflocken', 370, 13.5, 59, 7, 10, 1, 1.3, 60, 'Portion', ''], ['Reis (gekocht)', 130, 2.7, 28, 0.3, 0.4, 0, 0.1, 200, 'Teller', ''],
+  ['Reis (roh)', 350, 7, 78, 0.6, 1.3, 0.1, 0.2, 80, 'Portion', ''], ['Nudeln (gekocht)', 150, 5.5, 29, 0.9, 1.8, 0.6, 0.2, 250, 'Teller', ''],
+  ['Vollkornnudeln (gekocht)', 140, 6, 26, 1, 4, 0.8, 0.2, 250, 'Teller', ''], ['Nudeln (roh)', 360, 12, 72, 1.5, 3, 3, 0.3, 100, 'Portion', ''],
+  ['Kartoffeln (gekocht)', 72, 2, 15, 0.1, 1.8, 0.8, 0, 250, 'Portion', ''], ['Süßkartoffel', 86, 1.6, 20, 0.1, 3, 4.2, 0, 200, 'Stück', ''],
+  ['Vollkornbrot', 220, 7.5, 40, 1.5, 7, 3, 0.3, 50, 'Scheibe', ''], ['Toastbrot', 260, 8, 48, 3.5, 2.5, 5, 0.8, 25, 'Scheibe', ''],
+  ['Brötchen', 270, 9, 53, 1.5, 3, 3, 0.3, 60, 'Stück', ''], ['Hähnchenbrust (roh)', 105, 23, 0, 1.2, 0, 0, 0.3, 200, 'Portion', ''],
+  ['Hähnchenbrust (gebraten)', 150, 30, 0, 3, 0, 0, 0.9, 150, 'Portion', ''], ['Putenbrust', 107, 24, 0, 1, 0, 0, 0.3, 150, 'Portion', ''],
+  ['Rinderhack', 250, 18, 0, 20, 0, 0, 8.5, 125, 'Portion', ''], ['Rindersteak', 140, 22, 0, 5, 0, 0, 2, 200, 'Steak', ''],
+  ['Lachs', 200, 20, 0, 13, 0, 0, 2.5, 125, 'Filet', ''], ['Thunfisch (Dose, Wasser)', 110, 25, 0, 1, 0, 0, 0.3, 130, 'Dose', ''],
+  ['Ei', 155, 13, 1, 11, 0, 1, 3.3, 60, 'Stück', ''], ['Eiklar', 48, 11, 0.7, 0.2, 0, 0.7, 0, 100, 'Portion', ''],
+  ['Magerquark', 67, 12, 4, 0.2, 0, 4, 0.1, 250, 'Becher', 'd'], ['Skyr', 63, 11, 4, 0.2, 0, 4, 0.1, 150, 'Becher', 'd'],
+  ['Hüttenkäse', 100, 12, 3, 4.5, 0, 3, 2.8, 200, 'Becher', 'd'], ['Griechischer Joghurt', 120, 4, 4, 10, 0, 4, 6.5, 150, 'Portion', 'd'],
+  ['Milch 1,5 %', 47, 3.4, 4.8, 1.5, 0, 4.8, 1, 250, 'Glas', 'd'], ['Gouda', 360, 25, 0, 28, 0, 0, 18, 30, 'Scheibe', 'd'],
+  ['Mozzarella', 250, 18, 1, 19, 0, 1, 12, 125, 'Kugel', 'd'], ['Whey-Protein (Pulver)', 380, 75, 8, 6, 0, 6, 3, 30, 'Shake', ''],
+  ['Tofu', 120, 13, 1.5, 7, 1, 0.6, 1, 200, 'Packung', ''], ['Linsen (gekocht)', 115, 9, 17, 0.4, 8, 1.8, 0.1, 200, 'Portion', 'v'],
+  ['Kichererbsen (gekocht)', 140, 8, 20, 2.5, 7.5, 4.8, 0.3, 150, 'Portion', 'v'], ['Kidneybohnen (Dose)', 95, 7, 13, 0.5, 6, 0.5, 0.1, 130, 'Portion', 'v'],
+  ['Erbsen (TK)', 81, 5.4, 14, 0.4, 5.7, 5.7, 0.1, 150, 'Portion', 'v'], ['Brokkoli', 34, 2.8, 4, 0.4, 3, 1.7, 0.1, 200, 'Portion', 'v'],
+  ['Gemüse gemischt', 40, 2, 6, 0.4, 3, 3, 0.1, 200, 'Portion', 'v'], ['Salat (gemischt)', 17, 1.3, 2, 0.2, 1.5, 1.5, 0, 100, 'Schüssel', 'v'],
+  ['Tomate', 18, 0.9, 2.6, 0.2, 1.2, 2.6, 0, 100, 'Stück', 'v'], ['Gurke', 12, 0.6, 1.8, 0.1, 0.5, 1.7, 0, 200, 'Stück', 'v'],
+  ['Paprika', 31, 1, 6, 0.3, 2, 4, 0, 150, 'Stück', 'v'], ['Karotte', 41, 0.9, 9.6, 0.2, 2.8, 4.7, 0, 80, 'Stück', 'v'],
+  ['Spinat', 23, 2.9, 3.6, 0.4, 2.2, 0.4, 0.1, 150, 'Portion', 'v'], ['Avocado', 160, 2, 2, 15, 6.7, 0.7, 2.1, 80, 'Hälfte', 'v'],
+  ['Banane', 95, 1.1, 21, 0.3, 2.6, 17, 0.1, 120, 'Stück', 'o'], ['Apfel', 52, 0.3, 11.4, 0.2, 2.4, 10, 0, 150, 'Stück', 'o'],
+  ['Orange', 47, 0.9, 12, 0.1, 2.4, 9, 0, 180, 'Stück', 'o'], ['Trauben', 69, 0.7, 18, 0.2, 0.9, 16, 0, 150, 'Portion', 'o'],
+  ['Kiwi', 61, 1.1, 15, 0.5, 3, 9, 0, 75, 'Stück', 'o'], ['Beeren (TK)', 45, 1, 8, 0.4, 4, 7, 0, 150, 'Portion', 'o'],
+  ['Erdnussbutter', 600, 25, 13, 50, 6, 6, 10, 20, 'Löffel', ''], ['Mandeln', 600, 21, 6, 52, 12, 4.4, 4, 30, 'Handvoll', ''],
+  ['Walnüsse', 650, 15, 7, 65, 6.5, 2.6, 6, 30, 'Handvoll', ''], ['Olivenöl', 884, 0, 0, 100, 0, 0, 14, 10, 'Esslöffel', ''],
+  ['Butter', 740, 0.7, 0.6, 82, 0, 0.6, 51, 10, 'Portion', 'd'], ['Honig', 305, 0.4, 76, 0, 0, 76, 0, 20, 'Löffel', ''],
+  ['Reiswaffel', 380, 8, 80, 3, 4, 0.6, 0.6, 8, 'Stück', ''], ['Müsli (ungesüßt)', 360, 10, 60, 6, 9, 8, 1, 60, 'Portion', ''],
+  ['Pizza (TK)', 250, 10, 30, 10, 2, 4, 4.5, 350, 'Pizza', ''], ['Döner', 215, 12, 20, 10, 1.5, 2.5, 4, 350, 'Stück', ''],
+  ['Pommes', 290, 3.5, 36, 15, 3, 0.3, 2.5, 150, 'Portion', ''], ['Burger', 250, 13, 24, 11, 1.5, 5, 4.5, 250, 'Stück', ''],
+  ['Schokolade', 540, 6, 57, 31, 3, 50, 19, 25, 'Riegel', ''], ['Gummibärchen', 340, 7, 77, 0.1, 0, 46, 0, 50, 'Handvoll', ''],
+  ['Chips', 540, 6, 50, 34, 4, 0.5, 3, 50, 'Portion', ''], ['Proteinriegel', 360, 33, 35, 10, 10, 3, 5, 60, 'Riegel', ''],
+  ['Cola', 42, 0, 10.6, 0, 0, 10.6, 0, 330, 'Dose', ''], ['Orangensaft', 45, 0.7, 10, 0.2, 0.2, 9, 0, 250, 'Glas', 'j'],
 ];
-export const FOODS = RAW.map(([name, kcal, p, c, f, portion, unit]) => ({ id: 'b:' + name, name, kcal, p, c, f, portion, unit }));
+export const FOODS = RAW.map(([name, kcal, p, c, f, fib, sug, sat, portion, unit, cat]) => ({ id: 'b:' + name, name, kcal, p, c, f, fib, sug, sat, portion, unit, cat }));
 
-// ---------- Ziele ----------
+// ---------- Profil & Bedarf ----------
 
 export const profile = () => data.nutrition || {};
 
@@ -65,31 +92,113 @@ export function weightNow() {
   return t ? t.current : profile().weight || null;
 }
 
-/** Tagesziel { kcal, p, c, f, bmr, tdee } oder null, wenn Angaben fehlen. */
-export function targets() {
+/** Grundumsatz: Katch-McArdle mit KFA, sonst Mifflin-St Jeor. */
+function bmrOf(n, w) {
+  if (n.bodyFat > 3 && n.bodyFat < 60) return 370 + 21.6 * w * (1 - n.bodyFat / 100);
+  return 10 * w + 6.25 * n.height - 5 * n.age + (n.sex === 'f' ? -161 : 5);
+}
+
+/** Alltags-PAL: aus Schritten (genauer) oder aus Beruf/Alltag (DGE). Alte Profile: "activity". */
+function palOf(n) {
+  if (n.steps > 0) {
+    const pal = 1.3 + Math.max(0, n.steps - 3000) / 1000 * 0.05;
+    const jobExtra = n.job >= 1.8 ? (n.job >= 2 ? 0.4 : 0.2) : 0; // schwere Arbeit zählt nicht nur über Schritte
+    return Math.min(2.4, pal + jobExtra);
+  }
+  if (n.job) return n.job;
+  return n.activity ? Math.min(n.activity, 1.9) : 1.6;
+}
+
+/** Trainings- und Sportverbrauch pro Tag (netto, über die Woche gemittelt). */
+function exerciseOf(n, w) {
+  const lift = (n.trainDays || 0) * ((n.trainMin || 60) / 60) * (LIFT_MET - 1);
+  const sport = (n.sportHours || 0) * ((SPORTS[n.sport || 'none']?.[1] || 6) - 1);
+  return ((lift + sport) * w) / 7;
+}
+
+/**
+ * Gemessener Bedarf aus deinen Daten (genauer als jede Formel):
+ * Ø gegessen − Gewichtsänderung × 7.700 kcal/kg, über die letzten 21 Tage.
+ * Nur wenn genug Tage eingetragen sind (≥ 10 von 14+) und Gewicht vorhanden ist.
+ */
+export function measuredTDEE(today = new Date()) {
+  const days = 21;
+  const from = dateStr(addDays(today, -days));
+  const to = dateStr(addDays(today, -1)); // heute ist noch nicht fertig
+  const logged = [];
+  for (let d = parseDate(from); dateStr(d) <= to; d = addDays(d, 1)) {
+    const ds = dateStr(d);
+    const list = entriesOf(ds);
+    if (list.length >= 2) logged.push(sumOf(list).kcal);
+  }
+  const body = data.body.filter((b) => b.date >= from && b.date <= to);
+  if (logged.length < 10 || body.length < 6) return null;
+  // Gewichtstrend: lineare Regression über die Messungen (robuster als erster/letzter Wert)
+  const t0 = parseDate(body[0].date).getTime();
+  const xs = body.map((b) => (parseDate(b.date).getTime() - t0) / 864e5), ys = body.map((b) => b.kg);
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+  const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / (xs.reduce((a, x) => a + (x - mx) ** 2, 0) || 1); // kg/Tag
+  const intake = logged.reduce((a, b) => a + b, 0) / logged.length;
+  const tdee = intake - slope * KCAL_PER_KG;
+  return tdee > 1200 && tdee < 6000 ? { tdee: Math.round(tdee), intake: Math.round(intake), kgPerWeek: slope * 7, days: logged.length } : null;
+}
+
+/**
+ * Tagesziele. Rückgabe null, wenn Angaben fehlen. Enthält auch Erklärung:
+ * { kcal, p, c, f, fib, water, bmr, tdee, tdeeSource, rate, weekly, warn[], plan }
+ */
+export function targets(today = new Date()) {
   const n = profile();
   const w = weightNow();
   if (!w || !n.height || !n.age || !n.sex) return null;
-  const bmr = 10 * w + 6.25 * n.height - 5 * n.age + (n.sex === 'f' ? -161 : 5);
-  const tdee = bmr * (n.activity || 1.55);
-  const [, factor, protPerKg] = GOALS[n.goal || 'bulk'];
-  let kcal = Math.round((tdee * factor + (n.adjust || 0)) / 10) * 10;
-  if (n.kcal) kcal = n.kcal; // feste Vorgabe überschreibt die Formel
-  const p = Math.round(w * protPerKg);
+  const bmr = bmrOf(n, w);
+  const est = bmr * palOf(n) + exerciseOf(n, w);
+  const meas = measuredTDEE(today);
+  const tdee = meas ? meas.tdee : est;
+  const goal = n.goal || 'bulk';
+  const warn = [];
+
+  // Tempo: aus Zielgewicht + Datum oder Standard nach Ziel/Erfahrung (% Körpergewicht pro Woche)
+  let rate = goal === 'bulk' ? LEVELS[n.level || 'intermediate'][1] : goal === 'cut' ? -0.7 : 0;
+  let plan = null;
+  if (n.targetWeight && n.targetDate && n.targetDate > dateStr(today)) {
+    const weeks = (parseDate(n.targetDate) - parseDate(dateStr(today))) / (7 * 864e5);
+    const kgPerWeek = (n.targetWeight - w) / weeks;
+    rate = (kgPerWeek / w) * 100;
+    plan = { kgPerWeek, weeks, target: n.targetWeight, date: n.targetDate };
+    if (rate > 0.5) warn.push(`${fmt1(kgPerWeek)} kg pro Woche ist zu schnell für sauberen Aufbau – über ~0,5 % pro Woche kommt vor allem Fett dazu. Lieber ein späteres Datum.`);
+    if (rate < -1) warn.push(`${fmt1(-kgPerWeek)} kg pro Woche abnehmen ist zu schnell – über ~1 % pro Woche gehen Muskeln verloren. Lieber ein späteres Datum.`);
+    if (goal === 'bulk' && kgPerWeek < 0) warn.push('Zielgewicht liegt unter deinem Gewicht, Ziel steht aber auf Aufbau.');
+    if (goal === 'cut' && kgPerWeek > 0) warn.push('Zielgewicht liegt über deinem Gewicht, Ziel steht aber auf Diät.');
+  }
+  const delta = (rate / 100) * w * KCAL_PER_KG / 7;
+  let kcal = Math.round((tdee + delta + (n.adjust || 0)) / 10) * 10;
+  const floor = Math.round(bmr / 10) * 10;
+  if (kcal < floor) { warn.push(`Unter deinem Grundumsatz (${floor} kcal) zu essen ist nicht sinnvoll – Ziel auf ${floor} kcal begrenzt.`); kcal = floor; }
+  if (n.kcal) kcal = n.kcal;
+
+  const lbm = n.bodyFat > 3 && n.bodyFat < 60 ? w * (1 - n.bodyFat / 100) : null;
+  const p = Math.round(lbm ? lbm * (goal === 'cut' ? 2.6 : 2.2) : w * (goal === 'cut' ? 2.2 : 1.8));
   const f = Math.round(Math.max(w * 0.8, (kcal * 0.25) / 9));
   const c = Math.max(0, Math.round((kcal - p * 4 - f * 9) / 4));
-  return { kcal, p, c, f, bmr: Math.round(bmr), tdee: Math.round(tdee) };
+  return {
+    kcal, p, c, f, fib: 30, water: waterTarget(dateStr(today), w),
+    bmr: Math.round(bmr), tdee: Math.round(tdee), est: Math.round(est), measured: meas,
+    rate, weekly: (rate / 100) * w, delta: Math.round(delta), warn, plan,
+  };
 }
+const fmt1 = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
 
-/** Vorschlag anhand des Gewichtsverlaufs: zu schnell/zu langsam? */
+/** Vorschlag anhand des Gewichtsverlaufs (nur ohne gemessenen Bedarf – der korrigiert ja schon selbst). */
 export function adjustHint() {
+  if (measuredTDEE()) return null;
   const t = bodyTrend();
   const goal = profile().goal || 'bulk';
   if (!t || t.pct == null) return null;
   const pct = t.pct;
-  if (goal === 'bulk' && pct < 0.15) return { delta: 150, text: `Dein Gewicht steigt kaum (${fmtPct(pct)}/Woche). Für Aufbau ca. +150 kcal pro Tag.` };
+  if (goal === 'bulk' && pct < 0.1) return { delta: 150, text: `Dein Gewicht steigt kaum (${fmtPct(pct)}/Woche). Für Aufbau ca. +150 kcal pro Tag.` };
   if (goal === 'bulk' && pct > 0.6) return { delta: -150, text: `Du nimmst schnell zu (${fmtPct(pct)}/Woche) – dabei kommt vor allem Fett dazu. Ca. −150 kcal pro Tag.` };
-  if (goal === 'cut' && pct > -0.4) return { delta: -150, text: `Du nimmst kaum ab (${fmtPct(pct)}/Woche). Ca. −150 kcal pro Tag.` };
+  if (goal === 'cut' && pct > -0.3) return { delta: -150, text: `Du nimmst kaum ab (${fmtPct(pct)}/Woche). Ca. −150 kcal pro Tag.` };
   if (goal === 'cut' && pct < -1.0) return { delta: 150, text: `Du nimmst sehr schnell ab (${fmtPct(pct)}/Woche) – Muskeln in Gefahr. Ca. +150 kcal pro Tag.` };
   if (goal === 'keep' && Math.abs(pct) > 0.25) return { delta: pct > 0 ? -100 : 100, text: `Dein Gewicht verändert sich (${fmtPct(pct)}/Woche). Ca. ${pct > 0 ? '−' : '+'}100 kcal pro Tag.` };
   return null;
@@ -101,24 +210,50 @@ export function saveProfile(patch) {
   save();
 }
 
+// ---------- Wasser ----------
+
+/** Trink-Ziel in ml: ~80 % des EFSA-Gesamtwassers + 0,5 L je Trainingsstunde an Trainingstagen. */
+export function waterTarget(ds = dateStr(), w = weightNow()) {
+  const n = profile();
+  let base = n.sex === 'f' ? 1600 : 2000;
+  if (w) base = Math.max(base, Math.round(w * 27)); // schwere Menschen brauchen mehr
+  const trained = sessionsByDate().has(ds) || !!plannedOf(currentVersion(), ds);
+  const extra = trained ? Math.round(((n.trainMin || 60) / 60) * 500) : 0;
+  return Math.round((base + extra) / 50) * 50;
+}
+
+export function logWater(ml) {
+  data.water.push({ id: uid(), t: Date.now(), date: dateStr(), ml });
+  save();
+}
+export function undoWater(ds = dateStr()) {
+  const i = data.water.map((x) => x.date).lastIndexOf(ds);
+  if (i >= 0) { data.water.splice(i, 1); save(); }
+}
+export const waterOf = (ds) => data.water.filter((x) => x.date === ds).reduce((a, x) => a + x.ml, 0);
+
 // ---------- Einträge ----------
+
+const r1 = (v) => Math.round(v * 10) / 10;
 
 /** Eintrag aus Lebensmittel (Werte je 100 g) und Menge in g. */
 export function logFood(food, grams) {
   const k = grams / 100;
   const e = {
-    id: uid(), t: Date.now(), date: dateStr(), name: food.name, g: Math.round(grams),
+    id: uid(), t: Date.now(), date: dateStr(), name: food.name, g: Math.round(grams), cat: food.cat || '',
     kcal: Math.round(food.kcal * k), p: r1(food.p * k), c: r1(food.c * k), f: r1(food.f * k),
-    ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, portion: food.portion, unit: food.unit },
+    fib: r1((food.fib || 0) * k), sug: r1((food.sug || 0) * k), sat: r1((food.sat || 0) * k),
+    ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, fib: food.fib, sug: food.sug, sat: food.sat, portion: food.portion, unit: food.unit, cat: food.cat },
   };
   data.food.push(e);
   save();
   return e;
 }
 
-/** Schnell eintragen: nur kcal (+ Protein). */
-export function logQuick(name, kcal, p = 0) {
-  const e = { id: uid(), t: Date.now(), date: dateStr(), name: name || 'Schnell eingetragen', kcal: Math.round(kcal), p: r1(p), c: 0, f: 0 };
+/** Schnell eintragen: kcal und/oder Makros. Fehlen kcal, werden sie aus den Makros berechnet. */
+export function logQuick(name, { kcal, p = 0, c = 0, f = 0 }) {
+  const k = kcal || Math.round(p * 4 + c * 4 + f * 9);
+  const e = { id: uid(), t: Date.now(), date: dateStr(), name: name || 'Schnell eingetragen', kcal: Math.round(k), p: r1(p), c: r1(c), f: r1(f) };
   data.food.push(e);
   save();
   return e;
@@ -129,13 +264,53 @@ export function removeFood(id) {
   save();
 }
 
-const r1 = (v) => Math.round(v * 10) / 10;
-
 export const entriesOf = (ds) => data.food.filter((x) => x.date === ds);
 
 export function sumOf(list) {
-  return list.reduce((a, x) => ({ kcal: a.kcal + x.kcal, p: a.p + (x.p || 0), c: a.c + (x.c || 0), f: a.f + (x.f || 0) }), { kcal: 0, p: 0, c: 0, f: 0 });
+  const z = { kcal: 0, p: 0, c: 0, f: 0, fib: 0, sug: 0, freeSug: 0, sat: 0, veg: 0, fruit: 0, known: 0 };
+  for (const x of list) {
+    z.kcal += x.kcal; z.p += x.p || 0; z.c += x.c || 0; z.f += x.f || 0;
+    z.fib += x.fib || 0; z.sug += x.sug || 0; z.sat += x.sat || 0;
+    // Freier Zucker (WHO): Zucker aus Obst/Gemüse/Milch zählt nicht, Saft schon
+    if (x.cat !== 'o' && x.cat !== 'v' && x.cat !== 'd') z.freeSug += x.sug || 0;
+    if (x.cat === 'v') z.veg += x.g || 0;
+    if (x.cat === 'o') z.fruit += x.g || 0;
+    if (x.cat === 'j') z.fruit += Math.min(x.g || 0, 150) * 0.5; // Saft zählt höchstens halb
+    if (x.ref || x.fib != null) z.known += x.kcal; // Einträge mit Detail-Nährwerten
+  }
+  return z;
 }
+
+// ---------- Ernährungsqualität (0–100) ----------
+
+/**
+ * Bewertet einen Tag nach anerkannten Empfehlungen (DGE, WHO, Sporternährung):
+ *  Protein-Ziel 20 · Kalorien-Ziel 10 · Gemüse 12 · Obst 8 · Ballaststoffe 15
+ *  · freier Zucker 10 · gesättigte Fette 10 · Wasser 15
+ */
+export function healthScore(ds = dateStr(), t = targets()) {
+  const list = entriesOf(ds);
+  if (!list.length || !t) return null;
+  const s = sumOf(list);
+  const water = waterOf(ds);
+  const lin = (v, full, zero) => Math.max(0, Math.min(1, (v - zero) / (full - zero)));
+  const kcalDev = Math.abs(s.kcal - t.kcal) / t.kcal;
+  const parts = [
+    ['Protein', 20, lin(s.p, t.p * 0.9, t.p * 0.5), `${Math.round(s.p)} / ${t.p} g`, 'Protein in jede Mahlzeit: Quark, Skyr, Eier, Fleisch, Fisch, Hülsenfrüchte.'],
+    ['Kalorien im Ziel', 10, kcalDev <= 0.1 ? 1 : lin(kcalDev, 0.1, 0.3), `${Math.round(s.kcal)} / ${t.kcal} kcal`, 'Für dein Ziel möglichst nah an der Vorgabe (±10 %) bleiben.'],
+    ['Gemüse', 12, lin(s.veg, 400, 0), `${Math.round(s.veg)} / 400 g`, 'DGE: mind. 3 Portionen Gemüse (400 g) am Tag – auch Hülsenfrüchte zählen.'],
+    ['Obst', 8, lin(s.fruit, 250, 0), `${Math.round(s.fruit)} / 250 g`, 'DGE: 2 Portionen Obst (250 g) am Tag.'],
+    ['Ballaststoffe', 15, lin(s.fib, 30, 10), `${Math.round(s.fib)} / 30 g`, 'Vollkorn, Haferflocken, Hülsenfrüchte, Gemüse, Nüsse.'],
+    ['Freier Zucker', 10, lin((s.freeSug * 4) / Math.max(s.kcal, 1), 0.1, 0.18), `${Math.round(s.freeSug)} g (${Math.round(((s.freeSug * 4) / Math.max(s.kcal, 1)) * 100)} % kcal)`, 'WHO: unter 10 % der Kalorien aus zugesetztem Zucker und Saft.'],
+    ['Gesättigte Fette', 10, lin((s.sat * 9) / Math.max(s.kcal, 1), 0.1, 0.15), `${Math.round(s.sat)} g (${Math.round(((s.sat * 9) / Math.max(s.kcal, 1)) * 100)} % kcal)`, 'Unter 10 % der Kalorien: weniger Wurst, Butter, Fast Food – mehr Olivenöl, Nüsse, Fisch.'],
+    ['Wasser', 15, lin(water, t.water, 0), `${fmtL(water)} / ${fmtL(t.water)}`, 'Über den Tag verteilt trinken, beim Training zusätzlich.'],
+  ].map(([name, max, k, val, tip]) => ({ name, max, pts: Math.round(max * k * 10) / 10, val, tip }));
+  const score = Math.round(parts.reduce((a, x) => a + x.pts, 0));
+  // Wie viel der Kalorien haben Detail-Nährwerte? (Schnelleinträge haben keine)
+  const coverage = s.kcal ? s.known / s.kcal : 1;
+  return { score, parts, coverage, label: score >= 80 ? 'Sehr gut' : score >= 65 ? 'Gut' : score >= 45 ? 'Okay' : 'Ausbaufähig' };
+}
+export const fmtL = (ml) => `${String(Math.round(ml / 100) / 10).replace('.', ',')} L`;
 
 /** Letzte 7 Tage (inkl. heute) für Diagramm und Schnitt; Tage ohne Eintrag zählen nicht zum Schnitt. */
 export function lastDays(n = 7, today = new Date()) {
@@ -176,14 +351,17 @@ function fromOFF(p) {
   const kcal = n['energy-kcal_100g'] ?? (n.energy_100g ? n.energy_100g / 4.184 : null);
   if (kcal == null || !p.product_name) return null;
   const portion = parseFloat(p.serving_quantity) || 100;
+  const g = (p.food_groups_tags || []).join(' ');
+  const cat = /fruit-juices/.test(g) ? 'j' : /en:fruits/.test(g) ? 'o' : /en:vegetables|legumes/.test(g) ? 'v' : /milk-and-dairy/.test(g) ? 'd' : '';
   return {
     id: 'off:' + (p.code || p._id), name: `${p.product_name}${p.brands ? ` (${String(p.brands).split(',')[0]})` : ''}`.slice(0, 60),
     kcal: Math.round(kcal), p: r1(n.proteins_100g || 0), c: r1(n.carbohydrates_100g || 0), f: r1(n.fat_100g || 0),
+    fib: r1(n.fiber_100g || 0), sug: r1(n.sugars_100g || 0), sat: r1(n['saturated-fat_100g'] || 0), cat,
     portion: Math.round(portion), unit: p.serving_quantity ? 'Portion' : '100 g',
   };
 }
 
-const OFF_FIELDS = 'code,product_name,brands,nutriments,serving_quantity';
+const OFF_FIELDS = 'code,product_name,brands,nutriments,serving_quantity,food_groups_tags';
 
 export async function searchOnline(q, signal) {
   const url = `https://de.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&fields=${OFF_FIELDS}`;

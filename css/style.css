@@ -789,6 +789,46 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 .scan-text { position: absolute; bottom: calc(60px + var(--safe-bottom)); left: 0; right: 0; text-align: center; color: #fff; font-weight: 600; }
 .scan-x { position: absolute; top: calc(14px + var(--safe-top)); left: 14px; }
 
+/* Ringe: Ernährungsqualität + Wasser */
+.rings { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 10px; }
+.ring-box { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; border-radius: var(--radius); padding: 4px; }
+button.ring-box:active { background: rgba(255, 255, 255, 0.05); }
+.ring-label { font-weight: 700; margin-top: 6px; }
+.ring2-bg { fill: none; stroke: var(--surface-2); stroke-width: 9; }
+.ring2-fg { fill: none; stroke-width: 9; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 52px 52px; transition: stroke-dashoffset 0.6s var(--ease-out); }
+.ring2-big { fill: var(--text); font-size: 24px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.ring2-small { fill: var(--muted); font-size: 10.5px; font-weight: 600; text-anchor: middle; font-family: var(--font); }
+.water-btns { display: flex; gap: 6px; margin-top: 8px; }
+.water-btns .chip { min-height: 34px; padding: 0 10px; font-size: 0.765rem; }
+.water-undo { min-height: 32px; font-size: 0.765rem; font-weight: 500; }
+.goal-line { margin: 4px 2px 6px; line-height: 1.45; font-size: 0.941rem; }
+.goal-line b { font-weight: 600; }
+.warn-box { margin-top: 10px; padding: 10px 12px; border-radius: var(--radius); background: rgba(200, 100, 100, 0.12); color: #e6b3b3; font-size: 0.882rem; line-height: 1.4; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.gfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px 14px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--hairline); }
+.gfield:focus-within { border-color: rgba(217, 138, 151, 0.6); }
+.gfield span { font-size: 0.765rem; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gfield input { width: 100%; min-width: 0; background: none; border: 0; outline: none; padding: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+.gfield input::placeholder { color: var(--placeholder); font-weight: 500; font-size: 1rem; }
+.gfield input[type=date] { font-size: 1.05rem; font-family: var(--font); -webkit-appearance: none; appearance: none; min-height: 1.6em; }
+.seg-8 { display: grid; grid-template-columns: repeat(8, 1fr); }
+.seg-8 .seg-item { padding: 0; }
+.seg-wrap7 { display: grid; grid-template-columns: repeat(4, 1fr); }
+.seg-wrap7 .seg-item { padding: 0 4px; font-size: 0.765rem; }
+.quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field.sm { padding: 8px 12px; }
+.field.sm input { font-size: 1.3rem; }
+.field.sm span { font-size: 0.765rem; min-width: 0; }
+.health-top { display: flex; justify-content: center; margin: -4px 0 12px; }
+.health-list { display: flex; flex-direction: column; gap: 10px; }
+.hp-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline; }
+.hp-row span:first-child { font-weight: 600; }
+.hp-row b { font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: right; font-size: 0.882rem; }
+.hp .nbar { height: 4px; margin-top: 4px; }
+.nbar.bad i { background: var(--red); }
+.tips { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; line-height: 1.45; font-size: 0.941rem; }
+.tips b { font-weight: 600; }
+
 /* ---------- Bildschirmwechsel (View Transitions) ---------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 380ms; animation-timing-function: var(--ease-drawer); }
 html[data-nav="forward"]::view-transition-new(root) { animation-name: vt-from-right; }
