@@ -10,14 +10,14 @@
 // Eigene Lebensmittel: selbst angelegt = nur für dich; mit Barcode = für alle.
 // =============================================================
 
-import { render, ui, openSheet, closeSheet, toast } from '../app.js';
+import { render, ui, openSheet, closeSheet, toast, go } from '../app.js';
 import { esc, fmtNum, fmtBig, dateStr, parseDate, addDays, fmtDateLong, parseNum, WD_SHORT, weekdayIdx, fmtW, fromW, toW, wu } from '../util.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 import { columnChart } from '../charts.js';
 import {
   JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood,
-  entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterTarget, logWater, undoWater, fmtL,
+  updateFood, entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterTarget, logWater, undoWater, fmtL,
   meals, mealAsFood, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE,
   myFoods, saveMyFood, deleteMyFood, checkFood, communityAdd,
 } from '../nutrition.js';
@@ -50,8 +50,8 @@ export const foodScreen = {
     const water = waterOf(ds), wTarget = waterTarget(ds);
 
     const rows = list.map((x) => `<div class="list-row static food-row">
-        <span class="lr-main"><span class="lr-title">${esc(x.name)}</span>
-          <span class="lr-sub">${x.g ? `${fmtBig(x.g)} ${x.ref?.liquid ? 'ml' : 'g'} · ` : ''}P ${fmtNum(Math.round(x.p))} · KH ${fmtNum(Math.round(x.c || 0))} · F ${fmtNum(Math.round(x.f || 0))} · ${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
+        <button class="lr-main food-edit" data-action="editEntry" data-id="${esc(x.id)}" aria-label="${esc(x.name)} ändern"><span class="lr-title">${esc(x.name)}</span>
+          <span class="lr-sub">${x.g ? `${fmtBig(x.g)} ${x.ref?.liquid ? 'ml' : 'g'} · ` : ''}P ${fmtNum(Math.round(x.p))} · KH ${fmtNum(Math.round(x.c || 0))} · F ${fmtNum(Math.round(x.f || 0))} · ${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></button>
         <span class="lr-value">${fmtBig(x.kcal)}<small> kcal</small></span>
         <button class="icon-btn sm" data-action="del" data-id="${esc(x.id)}" aria-label="Löschen">${ICON.x}</button></div>`).join('');
 
@@ -118,6 +118,7 @@ export const foodScreen = {
     water: (el) => { logWater(Number(el.dataset.ml)); render(); },
     waterUndo: () => { undoWater(); render(); },
     del: (el) => { removeFood(el.dataset.id); render(); },
+    editEntry: (el) => openEntryEdit(el.dataset.id),
     prevDay: () => { ui.params.date = dateStr(addDays(parseDate(ui.params.date || dateStr()), -1)); render(); },
     nextDay: () => { const n = dateStr(addDays(parseDate(ui.params.date || dateStr()), 1)); ui.params.date = n >= dateStr() ? null : n; render(); },
     applyHint: (el) => { saveProfile({ adjust: (profile().adjust || 0) + Number(el.dataset.d), kcal: null }); toast('Ziel angepasst'); render(); },
@@ -370,98 +371,180 @@ function openAmountSheet(food) {
   });
 }
 
-// ---------- Eigenes Gericht erstellen / bearbeiten ----------
+// ---------- Eingetragenes Essen ändern ----------
 
-/**
- * Baukasten: Name, Portionen, Zutaten (aus Liste oder online) mit Gramm.
- * Ergebnis wird als Gericht gespeichert und erscheint beim Eintragen ganz oben.
- */
+function openEntryEdit(id) {
+  const x = entriesOf(ui.params.date || dateStr()).find((e) => e.id === id);
+  if (!x) return;
+  const time = new Date(x.t).toTimeString().slice(0, 5);
+  const unit = x.ref?.liquid ? 'ml' : 'g';
+  const byAmount = !!x.g;
+  const calc = (g) => { const k = g / x.g; return `<b>${fmtBig(x.kcal * k)}</b> kcal · ${fmtNum(Math.round(x.p * k * 10) / 10)} g Protein · ${fmtNum(Math.round(x.c * k * 10) / 10)} g KH · ${fmtNum(Math.round(x.f * k * 10) / 10)} g Fett`; };
+  const qf = (id2, v, label) => `<label class="field sm"><input id="${id2}" inputmode="decimal" value="${v ? fmtNum(v) : ''}" placeholder="0"><span>${label}</span></label>`;
+  openSheet(`<h2 class="sheet-title">Eintrag ändern</h2>
+    <label class="gfield"><span>Name</span><input id="eName" value="${esc(x.name)}" maxlength="60" autocomplete="off"></label>
+    ${byAmount ? `<label class="field amount"><input id="eG" inputmode="decimal" value="${x.g}" data-input="eg" data-enter="saveEntry"><span>${unit}</span></label>
+      <p class="amount-calc" id="eCalc">${calc(x.g)}</p>`
+    : `<div class="quick-grid">${qf('eKcal', x.kcal, 'kcal')}${qf('eP', x.p, 'g Protein')}${qf('eC', x.c, 'g KH')}${qf('eF', x.f, 'g Fett')}</div>`}
+    <label class="gfield inline"><span>Uhrzeit</span><input id="eTime" type="time" value="${time}"></label>
+    <div class="sheet-actions"><button class="btn primary big" data-action="saveEntry">Speichern</button>
+      <button class="btn ghost big danger" data-action="delEntry">${ICON.trash} Löschen</button></div>`, {
+    inputs: { eg: (el) => { const g = parseNum(el.value); if (g && !Number.isNaN(g)) document.getElementById('eCalc').innerHTML = calc(g); } },
+    saveEntry: () => {
+      const num = (i) => { const v = parseNum(document.getElementById(i)?.value); return v == null || Number.isNaN(v) ? null : v; };
+      const patch = { name: document.getElementById('eName').value.trim(), time: document.getElementById('eTime').value };
+      if (byAmount) {
+        const g = num('eG');
+        if (!g || g > 5000) return toast(`Menge in ${unit} eingeben`);
+        patch.g = g;
+      } else {
+        Object.assign(patch, { kcal: num('eKcal') || 0, p: num('eP') || 0, c: num('eC') || 0, f: num('eF') || 0 });
+        if (!patch.kcal && !patch.p && !patch.c && !patch.f) return toast('Kalorien oder Makros eingeben');
+      }
+      updateFood(x.id, patch);
+      closeSheet(); toast('Eintrag geändert'); render();
+    },
+    delEntry: () => { removeFood(x.id); closeSheet(); toast('Eintrag gelöscht'); render(); },
+  });
+}
+
+// ---------- Eigenes Gericht erstellen / bearbeiten (eigene Seite) ----------
+// Früher ein Wisch-Fenster – da ging beim Scrollen leicht alles verloren.
+// Jetzt eine eigene Seite; jeder Schritt wird sofort als Entwurf gespeichert
+// (auch Verlassen oder App schließen verliert nichts).
+
+const DRAFT = 'gym.mealDraft';
+let mst = null; // { id?, name, servings, items: [ { food, g } ] }
+let mRes = [], mOnline = [], mTimer, mCtrl;
+
+function saveDraft() { try { localStorage.setItem(DRAFT, JSON.stringify(mst)); } catch { /* egal */ } }
+function loadDraft() { try { return JSON.parse(localStorage.getItem(DRAFT) || 'null'); } catch { return null; } }
+function clearDraft() { try { localStorage.removeItem(DRAFT); } catch { /* egal */ } mst = null; }
+
 function openMealBuilder(meal = null) {
-  const st = { id: meal?.id, name: meal?.name || '', servings: meal?.servings || 1, items: meal ? meal.items.map((x) => ({ ...x })) : [] };
-  let results = [], online = [], timer, ctrl;
-  const totals = () => {
-    const t = mealTotals(st);
-    const per = (v) => v / (st.servings || 1);
-    return st.items.length
-      ? `<div class="meal-sum"><div><span>Ganzes Gericht</span><b>${fmtBig(t.kcal)} kcal</b><small>${fmtBig(t.g)} g · P ${Math.round(t.p)} · KH ${Math.round(t.c)} · F ${Math.round(t.f)}</small></div>
-         <div><span>Pro Portion (${st.servings})</span><b>${fmtBig(per(t.kcal))} kcal</b><small>${fmtBig(per(t.g))} g · P ${Math.round(per(t.p))} · KH ${Math.round(per(t.c))} · F ${Math.round(per(t.f))}</small></div></div>`
-      : '<p class="muted small pad">Noch keine Zutaten – unten suchen und antippen.</p>';
-  };
-  const itemsHtml = () => st.items.map((x, i) => `<div class="meal-item">
-      <span class="meal-item-name">${esc(x.food.name)}<small id="mk${i}">${fmtBig(x.food.kcal * x.g / 100)} kcal</small></span>
-      <label class="field mini"><input inputmode="decimal" value="${x.g}" data-input="mg" data-i="${i}"><span>g</span></label>
-      <button class="icon-btn sm" data-action="rmItem" data-i="${i}" aria-label="Entfernen">${ICON.x}</button></div>`).join('');
-  const resHtml = () => [...results, ...online].slice(0, 25).map((f, i) => `<button class="drink" data-action="addItem" data-i="${i}">
-      <span class="drink-name">${esc(f.name)}</span><span class="drink-meta"><b>${f.kcal}</b> kcal <small>/100 g</small></span></button>`).join('');
-  const redraw = () => {
-    document.getElementById('mItems').innerHTML = itemsHtml();
-    document.getElementById('mSum').innerHTML = totals();
-  };
-  const redrawRes = () => { document.getElementById('mRes').innerHTML = resHtml(); };
-  openSheet(`<h2 class="sheet-title">${meal ? 'Gericht bearbeiten' : 'Eigenes Gericht'}</h2>
-    <label class="gfield"><span>Name</span><input id="mName" value="${esc(st.name)}" placeholder="z. B. Hähnchen-Reis-Bowl" maxlength="40" autocomplete="off" data-input="mname"></label>
-    <h3 class="sheet-h">Ergibt Portionen</h3>
-    <div class="seg-wrap seg-full" role="group">${[1, 2, 3, 4, 5, 6].map((n) => `<button class="seg-item${n === st.servings ? ' on' : ''}" data-action="serv" data-n="${n}">${n}</button>`).join('')}</div>
-    <h3 class="sheet-h">Zutaten</h3>
-    <div class="meal-items" id="mItems">${itemsHtml()}</div>
-    <div id="mSum">${totals()}</div>
-    <h3 class="sheet-h">Zutat hinzufügen</h3>
-    <input id="mQ" class="input" placeholder="Suchen, z. B. Reis, Hähnchen" autocomplete="off" data-input="mq">
-    <p class="muted small" id="mState" style="margin:6px 2px 0"></p>
-    <div class="drinks food-res" id="mRes"></div>
-    <div class="sheet-actions" style="margin-top:16px"><button class="btn primary big" data-action="saveMeal">Gericht speichern</button></div>`, {
-    // (Datenbank wird unten nachgeladen)
-    inputs: {
-      mname: (el) => { st.name = el.value; },
-      mg: (el) => {
-        const g = parseNum(el.value);
-        if (!g || Number.isNaN(g)) return;
-        const it = st.items[+el.dataset.i];
-        it.g = g;
-        document.getElementById(`mk${el.dataset.i}`).textContent = `${fmtBig(it.food.kcal * g / 100)} kcal`;
-        document.getElementById('mSum').innerHTML = totals();
-      },
-      mq: (el) => {
-        const q = el.value;
-        results = q.trim() ? searchLocal(q, { withMeals: false }) : [];
-        online = [];
-        redrawRes();
-        clearTimeout(timer); ctrl?.abort();
-        const stEl = document.getElementById('mState');
-        if (q.trim().length < 3) { stEl.textContent = ''; return; }
-        stEl.textContent = 'Suche auch online …';
-        timer = setTimeout(async () => {
-          ctrl = new AbortController();
-          try { online = (await searchOnline(q.trim(), ctrl.signal)).filter((f) => !results.some((r) => r.name === f.name)); stEl.textContent = ''; redrawRes(); }
-          catch (e) { if (e.name !== 'AbortError') stEl.textContent = 'Online-Suche gerade nicht erreichbar.'; }
-        }, 450);
-      },
+  const d = loadDraft();
+  const fromMeal = meal ? { id: meal.id, name: meal.name, servings: meal.servings || 1, items: meal.items.map((x) => ({ ...x })) } : null;
+  if (d && (d.items?.length || d.name) && (!meal || d.id === meal.id)) {
+    mst = d;
+    setTimeout(() => toast('Entwurf fortgesetzt'), 400);
+  } else mst = fromMeal || { name: '', servings: 1, items: [] };
+  saveDraft();
+  mRes = []; mOnline = [];
+  go('meal');
+}
+
+function mealTotalsHtml() {
+  const t = mealTotals(mst);
+  const per = (v) => v / (mst.servings || 1);
+  return mst.items.length
+    ? `<div class="meal-sum"><div><span>Ganzes Gericht</span><b>${fmtBig(t.kcal)} kcal</b><small>${fmtBig(t.g)} g · P ${Math.round(t.p)} · KH ${Math.round(t.c)} · F ${Math.round(t.f)}</small></div>
+       <div><span>Pro Portion (${mst.servings})</span><b>${fmtBig(per(t.kcal))} kcal</b><small>${fmtBig(per(t.g))} g · P ${Math.round(per(t.p))} · KH ${Math.round(per(t.c))} · F ${Math.round(per(t.f))}</small></div></div>`
+    : '<p class="muted small pad">Noch keine Zutaten – unten suchen, scannen oder anlegen.</p>';
+}
+const mealItemsHtml = () => mst.items.map((x, i) => `<div class="meal-item">
+    <span class="meal-item-name">${esc(x.food.name)}<small id="mk${i}">${fmtBig(x.food.kcal * x.g / 100)} kcal</small></span>
+    <label class="field mini"><input inputmode="decimal" value="${x.g}" data-input="mg" data-i="${i}"><span>${x.food.liquid ? 'ml' : 'g'}</span></label>
+    <button class="icon-btn sm" data-action="rmItem" data-i="${i}" aria-label="Entfernen">${ICON.x}</button></div>`).join('');
+const mealResHtml = () => [...mRes, ...mOnline].slice(0, 25).map((f, i) => `<button class="drink" data-action="addItem" data-i="${i}">
+    <span class="drink-name">${esc(f.name)}${f.mine ? ` <span class="uni-tag mine">${f.code ? 'Gescannt' : 'Eigenes'}</span>` : f.shared ? ' <span class="uni-tag shared">Gym-Nutzer</span>' : ''}</span><span class="drink-meta"><b>${f.kcal}</b> kcal <small>/100 ${f.liquid ? 'ml' : 'g'}</small></span></button>`).join('');
+function mealRedraw() {
+  const a = document.getElementById('mItems'), b = document.getElementById('mSum');
+  if (a) a.innerHTML = mealItemsHtml();
+  if (b) b.innerHTML = mealTotalsHtml();
+}
+const mealRedrawRes = () => { const el = document.getElementById('mRes'); if (el) el.innerHTML = mealResHtml(); };
+
+/** Zutat ins Gericht (aus Suche, Scan oder neu angelegt). */
+function mealAdd(f) {
+  if (!mst || !f) return;
+  mst.items.push({ food: f, g: f.portion || 100 });
+  saveDraft();
+  mRes = []; mOnline = [];
+  const q = document.getElementById('mQ'); if (q) q.value = '';
+  mealRedrawRes(); mealRedraw();
+  toast(`${f.name} hinzugefügt – Menge anpassen`);
+}
+
+export const mealScreen = {
+  render() {
+    if (!mst) mst = loadDraft() || { name: '', servings: 1, items: [] };
+    return `<header class="topbar">
+        <button class="glass-circle" data-action="back" aria-label="Zurück">${ICON.back}</button>
+        <span class="topbar-mid">${mst.id ? 'Gericht bearbeiten' : 'Eigenes Gericht'}</span>
+        <span class="glass-pill"><button data-action="discard">Verwerfen</button></span>
+      </header>
+      <main class="content meal-page has-footer">
+        <label class="gfield"><span>Name</span><input id="mName" value="${esc(mst.name)}" placeholder="z. B. Hähnchen-Reis-Bowl" maxlength="40" autocomplete="off" data-input="mname"></label>
+        <h3 class="sheet-h">Ergibt Portionen</h3>
+        <div class="seg-wrap seg-full" role="group">${[1, 2, 3, 4, 5, 6].map((n) => `<button class="seg-item${n === mst.servings ? ' on' : ''}" data-action="serv" data-n="${n}">${n}</button>`).join('')}</div>
+        <h3 class="sheet-h">Zutaten</h3>
+        <div class="meal-items" id="mItems">${mealItemsHtml()}</div>
+        <div id="mSum">${mealTotalsHtml()}</div>
+        <h3 class="sheet-h">Zutat hinzufügen</h3>
+        <div class="add-row">
+          <input id="mQ" class="input" placeholder="Suchen, z. B. Reis, Hähnchen" autocomplete="off" data-input="mq" enterkeyhint="search">
+          ${canScan() ? `<button class="btn" data-action="mScan" aria-label="Barcode scannen">${ICON.barcode}</button>` : ''}
+        </div>
+        <p class="muted small" id="mState" style="margin:6px 2px 0"></p>
+        <div class="drinks meal-res" id="mRes">${mealResHtml()}</div>
+        <button class="btn dashed" data-action="mNewFood">${ICON.plus} Eigene Zutat anlegen</button>
+        <p class="note">Wird automatisch als Entwurf gemerkt – du kannst die Seite verlassen und später weitermachen.</p>
+      </main>
+      <footer class="bottom"><button class="btn primary big" data-action="saveMeal">Gericht speichern</button></footer>`;
+  },
+  after() { if (!foodDbReady()) loadFoodDb(); },
+  actions: {
+    back: () => go('food'),
+    discard: async () => {
+      if ((mst.items.length || mst.name) && !(await ask('Entwurf verwerfen?', 'Name und Zutaten werden gelöscht.', 'Verwerfen', true))) return;
+      clearDraft(); go('food');
     },
     serv: (el) => {
-      st.servings = Number(el.dataset.n);
+      mst.servings = Number(el.dataset.n); saveDraft();
       el.parentElement.querySelectorAll('.seg-item').forEach((b) => b.classList.toggle('on', b === el));
-      document.getElementById('mSum').innerHTML = totals();
+      document.getElementById('mSum').innerHTML = mealTotalsHtml();
     },
-    addItem: (el) => {
-      const f = [...results, ...online][Number(el.dataset.i)];
-      st.items.push({ food: f, g: f.portion || 100 });
-      const q = document.getElementById('mQ'); q.value = ''; results = []; online = []; redrawRes();
-      redraw();
-      toast(`${f.name} hinzugefügt – Menge anpassen`);
-    },
-    rmItem: (el) => { st.items.splice(Number(el.dataset.i), 1); redraw(); },
+    addItem: (el) => mealAdd([...mRes, ...mOnline][Number(el.dataset.i)]),
+    rmItem: (el) => { mst.items.splice(Number(el.dataset.i), 1); saveDraft(); mealRedraw(); },
+    mScan: () => scanBarcode({ onFood: mealAdd, onCancel: () => {} }),
+    mNewFood: () => openFoodForm(null, '', (f) => { closeSheet(); mealAdd(f); }),
     saveMeal: () => {
-      st.name = document.getElementById('mName').value.trim();
-      if (!st.name) return toast('Bitte einen Namen eingeben');
-      if (!st.items.length) return toast('Mindestens eine Zutat hinzufügen');
-      const m = saveMeal(st);
-      closeSheet();
-      toast(`„${m.name}“ gespeichert – steht beim Eintragen ganz oben`);
-      render();
+      mst.name = document.getElementById('mName').value.trim();
+      if (!mst.name) return toast('Bitte einen Namen eingeben');
+      if (!mst.items.length) return toast('Mindestens eine Zutat hinzufügen');
+      const m = saveMeal(mst);
+      clearDraft();
+      go('food');
+      setTimeout(() => toast(`„${m.name}“ gespeichert – steht beim Eintragen ganz oben`), 300);
     },
-  });
-  if (!foodDbReady()) loadFoodDb();
-}
+  },
+  inputs: {
+    mname: (el) => { mst.name = el.value; saveDraft(); },
+    mg: (el) => {
+      const g = parseNum(el.value);
+      if (!g || Number.isNaN(g)) return;
+      const it = mst.items[+el.dataset.i];
+      it.g = g; saveDraft();
+      document.getElementById(`mk${el.dataset.i}`).textContent = `${fmtBig(it.food.kcal * g / 100)} kcal`;
+      document.getElementById('mSum').innerHTML = mealTotalsHtml();
+    },
+    mq: (el) => {
+      const q = el.value;
+      mRes = q.trim() ? searchLocal(q, { withMeals: false }) : [];
+      mOnline = [];
+      mealRedrawRes();
+      clearTimeout(mTimer); mCtrl?.abort();
+      const stEl = document.getElementById('mState');
+      if (q.trim().length < 3) { stEl.textContent = ''; return; }
+      stEl.textContent = 'Suche auch online …';
+      mTimer = setTimeout(async () => {
+        mCtrl = new AbortController();
+        try { mOnline = (await searchOnline(q.trim(), mCtrl.signal)).filter((f) => !mRes.some((r) => r.name === f.name)); stEl.textContent = ''; mealRedrawRes(); }
+        catch (e) { if (e.name !== 'AbortError') stEl.textContent = 'Online-Suche gerade nicht erreichbar.'; }
+      }, 450);
+    },
+  },
+};
 
 // ---------- Eigenes Lebensmittel anlegen / ändern ----------
 
@@ -469,7 +552,7 @@ function openMealBuilder(meal = null) {
  * Nährwerte je 100 g von der Packung abtippen.
  * Ohne Barcode: nur für dich. Mit Barcode (gescannt): auch für alle anderen.
  */
-function openFoodForm(food = null, code = food?.code || '') {
+function openFoodForm(food = null, code = food?.code || '', onSaved = openAmountSheet) {
   const v = (k) => (food?.[k] != null && food[k] !== 0 ? fmtNum(food[k]) : '');
   const cats = [['', 'Sonstiges'], ['d', 'Milchprodukt'], ['v', 'Gemüse'], ['o', 'Obst']];
   let cat = food?.cat || '', liquid = !!food?.liquid;
@@ -513,7 +596,7 @@ function openFoodForm(food = null, code = food?.code || '') {
         const ok = await communityAdd(saved);
         toast(ok ? 'Gespeichert – jetzt für alle scannbar' : 'Gespeichert (für alle teilen klappt gerade nicht – nur bei dir)');
       } else toast('Gespeichert – steht beim Eintragen ganz oben');
-      openAmountSheet(saved);
+      onSaved(saved);
     },
   });
   setTimeout(() => document.getElementById(food?.name ? 'nfKcal' : 'nfName')?.focus(), 350);
@@ -564,7 +647,8 @@ export async function makeDetector() {
   };
 }
 
-async function scanBarcode() {
+/** target: { onFood(food), onCancel() } – Standard: Essen eintragen. */
+async function scanBarcode(target = { onFood: openAmountSheet, onCancel: openAddSheet }) {
   closeSheet(true);
   const ov = document.createElement('div');
   ov.className = 'scan';
@@ -575,8 +659,8 @@ async function scanBarcode() {
   document.body.appendChild(ov);
   let stream, stop = false;
   const end = () => { stop = true; stream?.getTracks().forEach((t) => t.stop()); ov.remove(); };
-  ov.querySelector('.scan-x').onclick = () => { end(); openAddSheet(); };
-  ov.querySelector('.scan-type').onclick = () => { end(); openCodeSheet(); };
+  ov.querySelector('.scan-x').onclick = () => { end(); target.onCancel(); };
+  ov.querySelector('.scan-type').onclick = () => { end(); openCodeSheet(target); };
   try {
     const [st, detect] = await Promise.all([
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
@@ -592,19 +676,19 @@ async function scanBarcode() {
       if (code && /^\d{8,14}$/.test(code)) {
         navigator.vibrate?.(30);
         end();
-        return lookupCode(code);
+        return lookupCode(code, target);
       }
       await new Promise((r) => setTimeout(r, 180));
     }
   } catch (e) {
     end();
     toast(e?.name === 'NotAllowedError' ? 'Kamera nicht erlaubt – in den Einstellungen für „Gym“ freigeben' : 'Kamera nicht verfügbar – Nummer eintippen');
-    openCodeSheet();
+    openCodeSheet(target);
   }
 }
 
 /** Barcode-Nummer von Hand (steht unter den Strichen). */
-function openCodeSheet() {
+function openCodeSheet(target = { onFood: openAmountSheet }) {
   openSheet(`<h2 class="sheet-title">Barcode eintippen</h2>
     <p class="muted small sheet-sub">Die Zahl unter den Strichen (8 oder 13 Ziffern).</p>
     <label class="gfield"><span>Barcode</span><input id="bcIn" inputmode="numeric" pattern="[0-9]*" maxlength="14" autocomplete="off" data-enter="go"></label>
@@ -613,16 +697,16 @@ function openCodeSheet() {
       const code = document.getElementById('bcIn').value.replace(/\D/g, '');
       if (!/^\d{8,14}$/.test(code)) return toast('8 bis 14 Ziffern eingeben');
       closeSheet(true);
-      lookupCode(code);
+      lookupCode(code, target);
     },
   });
   setTimeout(() => document.getElementById('bcIn')?.focus(), 350);
 }
 
-async function lookupCode(code) {
+async function lookupCode(code, target = { onFood: openAmountSheet }) {
   toast('Suche Produkt …');
   const food = await byBarcode(code).catch(() => null);
-  if (food) { openAmountSheet(food); return; }
+  if (food) { target.onFood(food); return; }
   toast('Noch nicht bekannt – Nährwerte von der Packung eintragen');
-  openFoodForm(null, code);
+  openFoodForm(null, code, (f) => { closeSheet(); target.onFood(f); });
 }

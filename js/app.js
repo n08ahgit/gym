@@ -21,7 +21,7 @@ import { settingsScreen } from './screens/settings.js';
 import { progressScreen, exstatScreen } from './screens/progress.js';
 import { friendsScreen, addFromCode } from './screens/friends.js';
 import { yearScreen } from './screens/yearview.js';
-import { foodScreen } from './screens/food.js';
+import { foodScreen, mealScreen } from './screens/food.js';
 import { sessionScreen } from './screens/sessionedit.js';
 import { autoBackup, requestPersist } from './backup.js';
 
@@ -37,6 +37,7 @@ const screens = {
   friends: friendsScreen,
   year: yearScreen,
   food: foodScreen,
+  meal: mealScreen,
   session: sessionScreen,
 };
 
@@ -58,7 +59,7 @@ let modalActions = null;
 
 /** Tiefe je Screen. Tabs (Tiefe 0) blenden über; tiefer = öffnet sich aus dem
  *  angetippten Element, flacher = schrumpft dorthin zurück. */
-const DEPTH = { home: 0, progress: 0, food: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, session: 2, search: 2, custom: 3 };
+const DEPTH = { home: 0, progress: 0, food: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, meal: 1, session: 2, search: 2, custom: 3 };
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 let skipNextTransition = false;
 
@@ -252,6 +253,10 @@ function enableSwipeToClose(panel) {
   let startY = null, startT = 0, dy = 0;
   panel.addEventListener('touchstart', (e) => {
     if (panel.scrollTop > 0 || e.touches.length > 1) return;
+    // Finger in einer eigenen Scroll-Liste (z. B. Suchergebnisse)? Dann scrollt die Liste – nie schließen.
+    for (let el = e.target; el && el !== panel; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(el).overflowY)) return;
+    }
     startY = e.touches[0].clientY;
     startT = performance.now();
     dy = 0;

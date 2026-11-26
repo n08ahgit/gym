@@ -1010,3 +1010,10 @@ button.hist-row .chev { grid-column: 2; grid-row: 1 / span 2; color: var(--muted
 .news-text { font-size: 0.85rem; color: var(--muted); line-height: 1.35; }
 .news-where { display: inline-flex; align-items: center; gap: 3px; font-size: 0.8rem; font-weight: 600; color: var(--accent); margin-top: 2px; }
 .news-where svg { width: 14px; height: 14px; }
+
+/* ---------- Gericht-Seite / Einträge ändern ---------- */
+.meal-page { display: flex; flex-direction: column; gap: 8px; }
+.meal-page .sheet-h { margin: 12px 2px 2px; }
+.meal-res:empty { display: none; }
+.meal-res { margin-top: 6px; }
+.food-edit { text-align: left; min-width: 0; }

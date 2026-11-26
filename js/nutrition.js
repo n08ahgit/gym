@@ -265,6 +265,38 @@ export function logQuick(name, { kcal, p = 0, c = 0, f = 0 }) {
   return e;
 }
 
+/**
+ * Eintrag ändern: Menge (g) → alle Werte anteilig; Schnelleintrag → Werte direkt; Uhrzeit "HH:MM".
+ */
+export function updateFood(id, { g, name, kcal, p, c, f, time } = {}) {
+  const e = data.food.find((x) => x.id === id);
+  if (!e) return null;
+  if (g && e.g) {
+    const k = g / e.g;
+    for (const key of ['kcal', 'p', 'c', 'f', 'fib', 'sug', 'sat', 'vegG', 'fruitG', 'freeSug']) {
+      if (e[key] == null) continue;
+      // genau: aus den Werten je 100 g, sonst anteilig
+      const v = e.ref?.[key] != null ? e.ref[key] * g / 100 : e[key] * k;
+      e[key] = key === 'kcal' || key.endsWith('G') ? Math.round(v) : r1(v);
+    }
+    e.g = Math.round(g);
+  } else if (kcal != null || p != null || c != null || f != null) {
+    if (p != null) e.p = r1(p);
+    if (c != null) e.c = r1(c);
+    if (f != null) e.f = r1(f);
+    e.kcal = Math.round(kcal || e.p * 4 + e.c * 4 + e.f * 9);
+  }
+  if (name) e.name = String(name).slice(0, 60);
+  if (/^\d{2}:\d{2}$/.test(time || '')) {
+    const d = new Date(e.t);
+    const [h, m] = time.split(':').map(Number);
+    d.setHours(h, m, 0, 0);
+    e.t = d.getTime();
+  }
+  save();
+  return e;
+}
+
 export function removeFood(id) {
   data.food = data.food.filter((x) => x.id !== id);
   save();
