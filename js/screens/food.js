@@ -10,7 +10,7 @@
 // =============================================================
 
 import { render, ui, openSheet, closeSheet, toast } from '../app.js';
-import { esc, fmtNum, fmtBig, dateStr, parseDate, addDays, fmtDateLong, parseNum, WD_SHORT, weekdayIdx } from '../util.js';
+import { esc, fmtNum, fmtBig, dateStr, parseDate, addDays, fmtDateLong, parseNum, WD_SHORT, weekdayIdx, fmtW, fromW, toW, wu } from '../util.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 import { columnChart } from '../charts.js';
@@ -128,11 +128,11 @@ function goalCard(t) {
   const n = profile();
   const hint = adjustHint();
   const sign = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±');
-  const kg = Math.abs(Math.round(t.weekly * 100) / 100);
-  const tempo = t.rate ? `${sign(t.rate)}${fmtNum(kg)} kg/Woche (${sign(t.rate)}${fmtNum(Math.abs(Math.round(t.rate * 100) / 100))} %)` : 'Gewicht halten';
-  const plan = t.plan ? `<p class="goal-line">Ziel: <b>${fmtNum(t.plan.target)} kg bis ${fmtDateLong(t.plan.date)}</b> · noch ${Math.round(t.plan.weeks)} Wochen</p>` : '';
+  const kg = Math.abs(Math.round(toW(t.weekly) * 100) / 100);
+  const tempo = t.rate ? `${sign(t.rate)}${fmtNum(kg)} ${wu()}/Woche (${sign(t.rate)}${fmtNum(Math.abs(Math.round(t.rate * 100) / 100))} %)` : 'Gewicht halten';
+  const plan = t.plan ? `<p class="goal-line">Ziel: <b>${fmtW(t.plan.target)} bis ${fmtDateLong(t.plan.date)}</b> · noch ${Math.round(t.plan.weeks)} Wochen</p>` : '';
   const src = t.measured
-    ? `Bedarf <b>${fmtBig(t.tdee)} kcal</b> – gemessen aus ${t.measured.days} Tagen (Ø ${fmtBig(t.measured.intake)} kcal gegessen, Gewicht ${sign(t.measured.kgPerWeek)}${fmtNum(Math.abs(Math.round(t.measured.kgPerWeek * 100) / 100))} kg/Woche). Formel hätte ${fmtBig(t.est)} kcal geschätzt.`
+    ? `Bedarf <b>${fmtBig(t.tdee)} kcal</b> – gemessen aus ${t.measured.days} Tagen (Ø ${fmtBig(t.measured.intake)} kcal gegessen, Gewicht ${sign(t.measured.kgPerWeek)}${fmtNum(Math.abs(Math.round(toW(t.measured.kgPerWeek) * 100) / 100))} ${wu()}/Woche). Formel hätte ${fmtBig(t.est)} kcal geschätzt.`
     : `Bedarf ca. <b>${fmtBig(t.tdee)} kcal</b> (geschätzt: Grundumsatz ${fmtBig(t.bmr)} kcal + Alltag + Training). Nach ~2 Wochen mit Einträgen und Gewicht misst die App deinen echten Bedarf.`;
   return `<section class="card goal-card">
     <div class="card-head"><h2>Ziel: ${GOALS[n.goal || 'bulk'][0]}</h2><button class="chip" data-action="goal">Anpassen</button></div>
@@ -167,14 +167,14 @@ function openGoalSheet() {
   openSheet(`<h2 class="sheet-title">Dein Ziel</h2>
     <h3 class="sheet-h">Ziel</h3>${seg('goal', Object.entries(GOALS).map(([k, g]) => [k, g[0]]))}
     <div class="two">
-      ${field('gTarget', n.targetWeight ? fmtNum(n.targetWeight) : '', 'optional', 'Zielgewicht (kg)')}
+      ${field('gTarget', n.targetWeight ? fmtW(n.targetWeight, false) : '', 'optional', `Zielgewicht (${wu()})`)}
       <label class="gfield"><span>bis (Datum)</span><input id="gDate" type="date" value="${n.targetDate || ''}" min="${dateStr(addDays(new Date(), 7))}"></label>
     </div>
     <p class="note">Optional: Wie viel willst du bis wann wiegen? Die App rechnet das nötige Tempo aus und warnt, wenn es unrealistisch ist.</p>
 
     <h3 class="sheet-h">Körper</h3>
     ${seg('sex', [['m', 'Männlich'], ['f', 'Weiblich']])}
-    <div class="goal-fields">${field('gAge', n.age, '18', 'Alter', 'numeric')}${field('gHeight', n.height, '180', 'Größe (cm)', 'numeric')}${field('gWeight', w ? fmtNum(Math.round(w * 10) / 10) : '', '75', 'Gewicht (kg)')}</div>
+    <div class="goal-fields">${field('gAge', n.age, '18', 'Alter', 'numeric')}${field('gHeight', n.height, '180', 'Größe (cm)', 'numeric')}${field('gWeight', w ? fmtW(w, false) : '', wu() === 'lb' ? '165' : '75', `Gewicht (${wu()})`)}</div>
     <div class="two">${field('gFat', n.bodyFat ? fmtNum(n.bodyFat) : '', 'optional', 'Körperfett (%)')}</div>
     <p class="note">Körperfett macht die Rechnung genauer (Katch-McArdle) – nur eintragen, wenn gemessen (z. B. Caliper, gute Waage). Grobe Orientierung Männer: Sixpack sichtbar ≈ 10–12 %, flacher Bauch ≈ 15 %.</p>
 
@@ -205,17 +205,17 @@ function openGoalSheet() {
     },
     saveGoal: () => {
       const v = (id) => { const x = parseNum(document.getElementById(id).value); return Number.isNaN(x) ? NaN : x; };
-      const age = v('gAge'), height = v('gHeight'), weight = v('gWeight');
+      const age = v('gAge'), height = v('gHeight'), weight = fromW(v('gWeight'));
       if (!age || !height || !weight || [age, height, weight].some(Number.isNaN) || age < 12 || age > 100 || height < 120 || height > 230 || weight < 30 || weight > 300) {
         return toast('Bitte Alter, Größe und Gewicht prüfen');
       }
-      const fat = v('gFat'), steps = v('gSteps'), min = v('gMin'), sportH = v('gSportH'), kcal = v('gKcal'), target = v('gTarget');
+      const fat = v('gFat'), steps = v('gSteps'), min = v('gMin'), sportH = v('gSportH'), kcal = v('gKcal'), target = fromW(v('gTarget'));
       const date = document.getElementById('gDate').value;
       if (fat && (Number.isNaN(fat) || fat < 4 || fat > 50)) return toast('Körperfett zwischen 4 und 50 %');
       if (target && (Number.isNaN(target) || target < 35 || target > 250)) return toast('Zielgewicht prüfen');
       if ((target && !date) || (!target && date)) return toast('Für ein Ziel bitte Gewicht und Datum angeben');
       saveProfile({
-        ...st, age: Math.round(age), height: Math.round(height), weight: Math.round(weight * 10) / 10,
+        ...st, age: Math.round(age), height: Math.round(height), weight: Math.round(weight * 100) / 100,
         bodyFat: fat || null, steps: steps && !Number.isNaN(steps) ? Math.round(steps) : null,
         trainMin: min && !Number.isNaN(min) ? Math.round(min) : 60, sportHours: sportH && !Number.isNaN(sportH) ? sportH : 0,
         targetWeight: target || null, targetDate: date || null,

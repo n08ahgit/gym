@@ -12,7 +12,7 @@
 
 import { go, render, ui, openSheet, closeSheet, toast } from '../app.js';
 import { data, setBodyWeight } from '../store.js';
-import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum, fmtSet } from '../util.js';
+import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum, fmtSet, fmtW, toW, fromW, wu, fmtVol } from '../util.js';
 import { bodyTrend } from '../coach.js';
 import { MUSCLES, getExercise } from '../exercises.js';
 import { RANGES, overview, weekly, strength, muscleSets, records, exerciseHistory, funFacts } from '../stats.js';
@@ -22,7 +22,7 @@ import { tabBar } from './tabbar.js';
 import { computeStreak } from '../streak.js';
 import { ICON } from './icons.js';
 
-const kgOrT = (kg) => (kg >= 10000 ? `${fmtNum(Math.round(kg / 100) / 10)} t` : `${fmtBig(kg)} kg`);
+const kgOrT = (kg) => fmtVol(kg);
 const shortDate = (ds) => { const d = parseDate(ds); return `${d.getDate()}.${d.getMonth() + 1}.`; };
 
 /** Veränderung als kleine Zeile mit Pfeil (Text in Textfarbe, nicht Datenfarbe). */
@@ -85,11 +85,11 @@ export const progressScreen = {
     // 3. Kraft
     const strengthRows = str.slice(0, 8).map((e) => {
       const ch = e.change;
-      const chTxt = Math.abs(ch) < 0.25 ? 'unverändert' : `${ch > 0 ? '+' : '−'}${fmtNum(Math.round(Math.abs(ch) * 2) / 2)} kg`;
+      const chTxt = Math.abs(ch) < 0.25 ? 'unverändert' : `${ch > 0 ? '+' : '−'}${fmtW(Math.abs(ch))}`;
       return `<button class="list-row" data-action="exercise" data-id="${esc(e.exId)}">
         <span class="lr-main"><span class="lr-title">${esc(e.name)}</span><span class="lr-sub">${e.inRange.length}× trainiert · ${chTxt}</span></span>
-        ${sparkline(e.inRange.map((p) => p.value))}
-        <span class="lr-value">${fmtNum(Math.round(e.last * 2) / 2)}<small> kg</small></span>
+        ${sparkline(e.inRange.map((p) => toW(p.value)))}
+        <span class="lr-value">${fmtW(e.last, false)}<small> ${wu()}</small></span>
         <span class="chev">${ICON.chev}</span></button>`;
     }).join('');
     const strengthCard = `<section class="card list-card">
@@ -114,7 +114,7 @@ export const progressScreen = {
     // 5. Rekorde
     const recRows = recs.map((r) => `<div class="list-row static">
       <span class="lr-main"><span class="lr-title">${esc(r.name)}</span><span class="lr-sub">${fmtDateLong(r.date)}</span></span>
-      <span class="lr-value">${fmtNum(r.w)} × ${fmtNum(r.r)}<small class="up"> +${fmtNum(Math.round(r.gain * 2) / 2)} kg</small></span></div>`).join('');
+      <span class="lr-value">${fmtW(r.w, false)} × ${fmtNum(r.r)}<small class="up"> +${fmtW(r.gain)}</small></span></div>`).join('');
     const recCard = `<section class="card list-card"><div class="card-head"><h2>Rekorde</h2><span class="muted small">neue Bestwerte</span></div>
       ${recRows || '<p class="muted small pad">Noch keine Rekorde – die kommen beim zweiten Training einer Übung.</p>'}</section>`;
 
@@ -129,7 +129,7 @@ export const progressScreen = {
         ${tile('Workouts', f.count, `${fmtNum(Math.round(f.hours))} Stunden im Gym`)}
         ${tile('Wiederholungen', fmtBig(f.reps), 'insgesamt')}
         ${tile('Lieblingsübung', f.favorite ? esc(f.favorite.name) : '–', f.favorite ? `${f.favorite.sets} Sätze` : '')}
-        ${tile('Stärkste Übung', f.strongest ? esc(f.strongest.name) : '–', f.strongest ? `${fmtNum(f.strongest.w)} kg × ${fmtNum(f.strongest.r)}` : '')}
+        ${tile('Stärkste Übung', f.strongest ? esc(f.strongest.name) : '–', f.strongest ? `${fmtW(f.strongest.w)} × ${fmtNum(f.strongest.r)}` : '')}
         ${tile('Längste Serie', `${f.longestStreak} ${f.longestStreak === 1 ? 'Woche' : 'Wochen'}`, 'Plan in Folge erfüllt')}
         ${tile('Lieblingstag', WEEKDAYS[f.topWeekday], `meist gegen ${f.avgStart} Uhr`)}
       </div></section>`;
@@ -187,8 +187,8 @@ export const exstatScreen = {
       const t0 = parseDate(valid[0].date).getTime(), t1 = parseDate(valid[valid.length - 1].date).getTime();
       const pts = valid.map((r) => ({
         x: t1 > t0 ? (parseDate(r.date).getTime() - t0) / (t1 - t0) : 0.5,
-        v: r.value,
-        tip: `${fmtDateLong(r.date)} · ${fmtNum(Math.round(r.value * 2) / 2)} kg (${fmtNum(r.best.w)} × ${fmtNum(r.best.r)})`,
+        v: toW(r.value),
+        tip: `${fmtDateLong(r.date)} · ${fmtW(r.value)} (${fmtSet(r.best)})`,
       }));
       chart = lineChart(pts) + `<div class="axis-dates"><span>${shortDate(valid[0].date)}</span><span>${shortDate(valid[valid.length - 1].date)}</span></div>`;
     }
@@ -203,8 +203,8 @@ export const exstatScreen = {
       </header>
       <main class="content">
         <div class="tiles three">
-          ${tile('Bestwert', best ? `${fmtNum(Math.round(best.value * 2) / 2)} kg` : '–', best ? `${fmtNum(best.best.w)} × ${fmtNum(best.best.r)}` : '')}
-          ${tile('Zuletzt', last?.best ? `${fmtNum(last.best.w)} × ${fmtNum(last.best.r)}` : '–', last ? shortDate(last.date) : '')}
+          ${tile('Bestwert', best ? fmtW(best.value) : '–', best ? fmtSet(best.best) : '')}
+          ${tile('Zuletzt', last?.best ? fmtSet(last.best) : '–', last ? shortDate(last.date) : '')}
           ${tile('Trainings', rows.length)}
         </div>
         <section class="card"><div class="card-head"><h2>Verlauf</h2><span class="muted small">geschätztes Maximum (1 Wdh)</span></div>${chart}</section>
@@ -257,15 +257,15 @@ function bodyCard() {
   let chart = '';
   if (recent.length >= 2) {
     const t0 = parseDate(recent[0].date).getTime(), t1 = parseDate(recent[recent.length - 1].date).getTime();
-    chart = lineChart(recent.map((b) => ({ x: t1 > t0 ? (parseDate(b.date).getTime() - t0) / (t1 - t0) : 0.5, v: b.kg, tip: `${fmtDateLong(b.date)} · ${fmtNum(b.kg)} kg` })), { height: 150 })
+    chart = lineChart(recent.map((b) => ({ x: t1 > t0 ? (parseDate(b.date).getTime() - t0) / (t1 - t0) : 0.5, v: toW(b.kg), tip: `${fmtDateLong(b.date)} · ${fmtW(b.kg)}` })), { height: 150 })
       + `<div class="axis-dates"><span>${shortDate(recent[0].date)}</span><span>${shortDate(recent[recent.length - 1].date)}</span></div>`;
   }
   const sign = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±');
-  const pw = tr.perWeek == null ? '–' : `${sign(tr.perWeek)}${fmtNum(Math.round(Math.abs(tr.perWeek) * 100) / 100)} kg`;
+  const pw = tr.perWeek == null ? '–' : `${sign(tr.perWeek)}${fmtNum(Math.round(toW(Math.abs(tr.perWeek)) * 100) / 100)} ${wu()}`;
   const pct = tr.pct == null ? 'Trend ab 10 Tagen' : `${sign(tr.pct)}${fmtNum(Math.round(Math.abs(tr.pct) * 100) / 100)} % pro Woche`;
   return `<section class="card body-card">${head}
     <div class="tiles flat">
-      ${tile('Ø 7 Tage', `${fmtNum(Math.round(tr.current * 10) / 10)} kg`, `zuletzt ${fmtNum(tr.last.kg)} kg · ${shortDate(tr.last.date)}`)}
+      ${tile('Ø 7 Tage', fmtW(tr.current), `zuletzt ${fmtW(tr.last.kg)} · ${shortDate(tr.last.date)}`)}
       ${tile('Pro Woche', pw, pct)}
     </div>
     ${chart}
@@ -278,16 +278,16 @@ function openBodySheet() {
   const last = data.body[data.body.length - 1];
   openSheet(`<h2 class="sheet-title">Körpergewicht</h2>
     <p class="muted small sheet-sub">Heute, ${fmtDateLong(today)}${cur ? ' · überschreibt den heutigen Wert' : ''}</p>
-    <label class="field bw-field"><input id="bwIn" inputmode="decimal" placeholder="${last ? fmtNum(last.kg) : '75'}" value="${cur ? fmtNum(cur.kg) : ''}" autocomplete="off" data-enter="saveBw"><span>kg</span></label>
+    <label class="field bw-field"><input id="bwIn" inputmode="decimal" placeholder="${last ? fmtW(last.kg, false) : (wu() === 'lb' ? '165' : '75')}" value="${cur ? fmtW(cur.kg, false) : ''}" autocomplete="off" data-enter="saveBw"><span>${wu()}</span></label>
     <div class="sheet-actions">
       <button class="btn primary big" data-action="saveBw">Speichern</button>
       ${cur ? '<button class="btn ghost big danger" data-action="delBw">Heutigen Wert löschen</button>' : ''}
     </div>`, {
     saveBw: () => {
       const el = document.getElementById('bwIn');
-      const v = parseNum(el.value || el.placeholder);
-      if (!v || Number.isNaN(v) || v < 30 || v > 300) return toast('Bitte ein Gewicht zwischen 30 und 300 kg eingeben');
-      setBodyWeight(today, Math.round(v * 10) / 10);
+      const v = fromW(parseNum(el.value || el.placeholder));
+      if (!v || Number.isNaN(v) || v < 30 || v > 300) return toast(wu() === 'lb' ? 'Bitte ein Gewicht zwischen 66 und 660 lb eingeben' : 'Bitte ein Gewicht zwischen 30 und 300 kg eingeben');
+      setBodyWeight(today, Math.round(v * 100) / 100);
       closeSheet();
       render();
     },

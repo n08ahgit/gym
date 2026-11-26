@@ -26,7 +26,7 @@
 //   water: [ { id, t, date, ml } ],
 //   meals: [ { id, name, servings, items: [ { food (Werte je 100 g), g } ] } ],  // eigene Gerichte
 //   nutrition: { sex, age, height, weight, bodyFat?, job, steps?, trainDays, trainMin, sport, sportHours, level, goal, targetWeight?, targetDate?, kcal?, adjust? },
-//   settings: { bar: 20, removed: [codes] }           // Stangengewicht, entfernte Freunde
+//   settings: { bar: 20, unit: 'kg'|'lb', removed: [codes] }           // Stangengewicht, entfernte Freunde
 // }
 //
 // Laufendes Workout separat unter "gym.active.v1" (siehe workout.js).
@@ -36,7 +36,7 @@
 // Version mit from <= Tag.
 // =============================================================
 
-import { dateStr, clone, uid, parseDate, weekdayIdx, WEEKDAYS } from './util.js';
+import { dateStr, clone, uid, parseDate, weekdayIdx, WEEKDAYS, units } from './util.js';
 
 const validCycle = (c) => !!c && /^\d{4}-\d{2}-\d{2}$/.test(c.start);
 
@@ -103,6 +103,14 @@ function loadData() {
 
 /** Live-Daten. Andere Module lesen "data" direkt (ES-Module = Live-Binding). */
 export let data = loadData();
+units.w = data.settings.unit === 'lb' ? 'lb' : 'kg';
+
+/** Gewichtseinheit umstellen (Anzeige/Eingabe; gespeichert wird weiter in kg). */
+export function setWeightUnit(u) {
+  data.settings.unit = u === 'lb' ? 'lb' : 'kg';
+  units.w = data.settings.unit;
+  save();
+}
 
 export function save() {
   try {
@@ -290,6 +298,7 @@ export function importJSON(text) {
   const keepProfile = data.profile;
   data = normalize(src);
   if (!src.profile) data.profile = keepProfile;
+  units.w = data.settings.unit === 'lb' ? 'lb' : 'kg';
   save();
   saveActive(parsed.active && Array.isArray(parsed.active.items) ? parsed.active : null);
 }

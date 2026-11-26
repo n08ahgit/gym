@@ -2,7 +2,7 @@
 // util.js – kleine Hilfsfunktionen (Datum, Formatierung, Escaping)
 // =============================================================
 
-export const APP_VERSION = '3.13.0';
+export const APP_VERSION = '3.14.0';
 
 export const WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 export const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -118,8 +118,29 @@ export function setVol(s) {
   return s.rl != null ? s.w * ((s.rl || 0) + (s.rr || 0)) : s.w * (s.r || 0);
 }
 
+// ---------- Gewichtseinheit (kg oder lb) ----------
+// Gespeichert wird IMMER in kg. Nur Anzeige und Eingabe rechnen um.
+export const LB_PER_KG = 2.20462262;
+export const units = { w: 'kg' }; // wird von store.js / Einstellungen gesetzt
+export const wu = () => units.w;
+/** kg → Anzeige-Einheit (ungerundet). */
+export const toW = (kg) => (kg == null ? kg : units.w === 'lb' ? kg * LB_PER_KG : kg);
+/** Eingabe in Anzeige-Einheit → kg. */
+export const fromW = (v) => (v == null || Number.isNaN(v) ? v : units.w === 'lb' ? v / LB_PER_KG : v);
+/** Gewicht hübsch: 82,5 kg bzw. 182 lb (lb auf 0,5 gerundet). */
+export function fmtW(kg, withUnit = true) {
+  if (kg == null) return '–';
+  const v = units.w === 'lb' ? Math.round(kg * LB_PER_KG * 2) / 2 : Math.round(kg * 100) / 100;
+  return `${fmtNum(v)}${withUnit ? ` ${units.w}` : ''}`;
+}
+/** Großes Volumen: 12.450 kg / 12,5 t bzw. 27.450 lb. */
+export function fmtVol(kg) {
+  if (units.w === 'lb') return `${fmtBig(kg * LB_PER_KG)} lb`;
+  return kg >= 10000 ? `${fmtNum(Math.round(kg / 100) / 10)} t` : `${fmtBig(kg)} kg`;
+}
+
 /** Satz als Text: "80 × 8" bzw. einseitig "20 × 10/9" (links/rechts). */
 export function fmtSet(s, sep = ' × ') {
-  const w = s.w == null ? '–' : fmtNum(s.w);
+  const w = s.w == null ? '–' : fmtW(s.w, false);
   return s.rl != null ? `${w}${sep}${fmtNum(s.rl)}/${fmtNum(s.rr)}` : `${w}${sep}${fmtNum(s.r)}`;
 }

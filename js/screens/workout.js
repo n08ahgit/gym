@@ -19,7 +19,7 @@ import { loadActive, saveActive, lastDoneSets, addSession } from '../store.js';
 import { getExercise, muscleNames } from '../exercises.js';
 import { bodyImage } from '../bodyimage.js';
 import { beep } from '../audio.js';
-import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet } from '../util.js';
+import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet, fmtW, fromW, wu, fmtVol } from '../util.js';
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';
@@ -256,9 +256,9 @@ function viewExercise() {
       <p class="ex-muscles">${esc(muscleNames(it.primary))}${movable().length > 1 ? ` · <button class="text-btn order-link" data-action="order">${ICON.swap} Reihenfolge</button>` : ''}</p>
       ${bodyImage(it.primary, it.secondary)}
       <div class="set-head"><span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
-      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last).replace(' × ', ' kg × ')}</b>` : '<b>–</b> (noch keine Werte)'}</p>
+      <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last).replace(' × ', ` ${wu()} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
       <div class="inputs${it.uni ? ' uni' : ''}">
-        <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtNum(ph.w) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusReps"><span>kg</span></label>
+        <label class="field"><input id="inW" inputmode="decimal" placeholder="${ph?.w != null ? fmtW(ph.w, false) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusReps"><span>${wu()}</span></label>
         ${it.uni
           ? `<label class="field side"><input id="inRL" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rl ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="next" data-enter="focusRight"><span>Links</span></label>
              <label class="field side"><input id="inRR" inputmode="numeric" pattern="[0-9]*" placeholder="${ph ? fmtNum(ph.rr ?? ph.r ?? 0) : '0'}" autocomplete="off" enterkeyhint="done" data-enter="setDone"><span>Rechts</span></label>`
@@ -351,7 +351,7 @@ function viewSummary() {
       <div class="stats">
         <div><b>${fmtDurationLong(st.duration)}</b><span>Dauer</span></div>
         <div><b>${st.sets}</b><span>Sätze</span></div>
-        <div><b>${fmtBig(st.volume)}</b><span>kg Volumen</span></div>
+        <div><b>${fmtVol(st.volume).replace(/ (kg|lb|t)$/, '')}</b><span>${fmtVol(st.volume).split(' ').pop()} Volumen</span></div>
       </div>
       <ul class="sum-list">${rows}</ul>
       ${st.sets === 0 ? '<p class="hint">Keine Sätze erledigt – es gibt nichts zu speichern.</p>' : ''}
@@ -445,7 +445,7 @@ export const workoutScreen = {
         const p = parseNum(el.placeholder);
         return p ? p : null;
       };
-      const w = read(inW);
+      const w = fromW(read(inW)); // Eingabe in kg oder lb → gespeichert wird kg
       let r, sides = null;
       if (curItem().uni) {
         const rl = read(document.getElementById('inRL')), rr = read(document.getElementById('inRR'));
@@ -471,7 +471,7 @@ export const workoutScreen = {
     useSug: () => {
       const sug = suggest(curItem().exId);
       const inW = document.getElementById('inW');
-      if (sug.w != null) inW.value = fmtNum(sug.w);
+      if (sug.w != null) inW.value = fmtW(sug.w, false);
       if (sug.target != null) ['inR', 'inRL', 'inRR'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = sug.target; });
       toast('Vorschlag übernommen');
     },
@@ -479,7 +479,8 @@ export const workoutScreen = {
     plates: () => {
       const v = parseNum(document.getElementById('inW')?.value);
       const ph = parseNum(document.getElementById('inW')?.placeholder);
-      openPlates(v || suggest(curItem().exId).w || ph || 60);
+      const sw = suggest(curItem().exId).w;
+      openPlates(v || (sw != null ? Number(fmtW(sw, false).replace(',', '.')) : 0) || ph || null);
     },
 
     skipSet: () => { skipSet(); transition(render); },

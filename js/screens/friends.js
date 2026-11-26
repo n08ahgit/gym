@@ -6,7 +6,7 @@
 
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
-import { esc, fmtNum, fmtBig } from '../util.js';
+import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
 import { BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
 import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices } from '../drinks.js';
 import { parseNum, fmtClock } from '../util.js';
@@ -20,7 +20,7 @@ const ago = (t) => {
 
 function fmtValue(key, v) {
   if (v == null) return '–';
-  if (key === 'volume') return v >= 10000 ? `${fmtNum(Math.round(v / 100) / 10)} t` : `${fmtBig(v)} kg`;
+  if (key === 'volume') return fmtVol(v);
   if (key === 'strength') return `${fmtNum(Math.round(v * 100) / 100)}×`;
   if (key === 'sets') return `${v} %`;
   if (key === 'skips') return `${v}×`;
@@ -179,7 +179,7 @@ function openFriend(id) {
     const lead = a != null && b != null && a !== b ? ((a > b) !== lowerBetter ? 'me' : 'them') : '';
     return `<li class="cmp"><span class="cmp-l">${label}</span><b class="${lead === 'me' ? 'lead' : ''}">${fmt(a)}</b><b class="${lead === 'them' ? 'lead' : ''}">${fmt(b)}</b></li>`;
   };
-  const kg = (v) => (v ? `${fmtNum(v)} kg` : '–');
+  const kg = (v) => (v ? fmtW(v) : '–');
   openSheet(`<h2 class="sheet-title">${esc(f.name)}</h2>
     <p class="muted small">Stand ${ago(f.t)} · zum Aktualisieren neuen Link schicken lassen</p>
     <ul class="cmp-list">

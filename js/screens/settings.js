@@ -3,7 +3,7 @@
 // =============================================================
 
 import { go, render, ask, toast } from '../app.js';
-import { data, importJSON, removeCustomExercise, wipeAll } from '../store.js';
+import { data, importJSON, removeCustomExercise, wipeAll, setWeightUnit } from '../store.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
 import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
 import { esc, dateStr, APP_VERSION, fmtDateLong } from '../util.js';
@@ -33,6 +33,15 @@ export const settingsScreen = {
           <label class="btn big file-btn">Backup importieren
             <input type="file" accept="application/json,.json" id="importFile" hidden>
           </label>
+        </section>
+
+        <section class="card">
+          <h3 class="section-title first">Gewichtseinheit</h3>
+          <div class="seg-wrap seg-full" role="group" aria-label="Gewichtseinheit">
+            <button class="seg-item${data.settings.unit === 'lb' ? '' : ' on'}" data-action="unit" data-u="kg">Kilogramm (kg)</button>
+            <button class="seg-item${data.settings.unit === 'lb' ? ' on' : ''}" data-action="unit" data-u="lb">Pfund (lb)</button>
+          </div>
+          <p class="note">Gilt für Hanteln, Rekorde, Scheibenrechner und Körpergewicht. Alte Einträge werden umgerechnet angezeigt – nichts geht verloren.</p>
         </section>
 
         ${pushCard()}
@@ -72,6 +81,8 @@ export const settingsScreen = {
     back: () => go('home'),
 
     export: async () => { if (await exportFile()) render(); },
+
+    unit: (el) => { setWeightUnit(el.dataset.u); toast(el.dataset.u === 'lb' ? 'Gewichte jetzt in Pfund (lb)' : 'Gewichte jetzt in Kilogramm (kg)'); render(); },
 
     sendFeedback: async (el) => {
       const text = document.getElementById('fbText').value.trim();

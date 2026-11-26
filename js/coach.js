@@ -22,7 +22,7 @@
 import { data } from './store.js';
 import { e1rm } from './stats.js';
 import { getExercise } from './exercises.js';
-import { fmtNum } from './util.js';
+import { fmtNum, fmtW, toW, fromW, wu } from './util.js';
 
 // ---------- Übungsarten ----------
 
@@ -85,6 +85,25 @@ function stepFor(exId, w) {
 }
 const roundTo = (v, step) => Math.round(v / step) * step;
 
+/** Sprung in lb (Hantelscheiben in lb: 2,5 / 5 / 10 / 25 / 35 / 45). */
+function stepForLb(exId, lb) {
+  const eq = equipment(exId);
+  if (eq === 'barbell') return LOWER_BIG.has(exId) && lb >= 135 ? 10 : 5;
+  if (LOWER_BIG.has(exId)) return 10;
+  return 5;
+}
+
+/** Neues Gewicht (kg) = altes + Sprung, gerundet auf das, was es in der gewählten Einheit wirklich gibt. */
+function raise(exId, wKg, times) {
+  if (wu() === 'lb') {
+    const lb = toW(wKg);
+    return fromW(roundTo(lb + stepForLb(exId, lb) * times, 2.5));
+  }
+  const eq = equipment(exId);
+  return roundTo(wKg + stepFor(exId, wKg) * times, eq === 'dumbbell' && wKg < 20 ? 1 : 1.25);
+}
+const lower10 = (wKg) => (wu() === 'lb' ? fromW(roundTo(toW(wKg) * 0.9, 5)) : roundTo(wKg * 0.9, 1.25));
+
 // ---------- Verlauf ----------
 
 /** Letzte n Trainings dieser Übung (neueste zuerst), nur mit erledigten Sätzen. */
@@ -130,35 +149,33 @@ export function suggest(exId) {
 
   // Körpergewicht ohne Zusatzlast: erst Wiederholungen, dann Zusatzgewicht
   if (!last.w) {
-    if (last.min >= hi) return { kind: 'up', w: 2.5, reps: [lo, hi], target: lo + 2, head: `+2,5 kg Zusatzgewicht`,
+    if (last.min >= hi) return { kind: 'up', w: wu() === 'lb' ? fromW(5) : 2.5, reps: [lo, hi], target: lo + 2, head: wu() === 'lb' ? '+5 lb Zusatzgewicht' : '+2,5 kg Zusatzgewicht',
       why: `Alle Sätze mit ${hi}+ Wdh. – Zeit für Zusatzgewicht (Gürtel, Weste oder Kurzhantel).` };
     return { kind: 'reps', w: null, reps: [lo, hi], target: Math.min(hi, last.max + 1), head: `${Math.min(hi, last.max + 1)} Wdh. anpeilen`,
       why: `Letztes Mal ${last.reps.join(' / ')} Wdh. – jeweils eine mehr schaffen.` };
   }
 
-  const step = stepFor(exId, last.w);
   // Oberes Ende in allen Arbeitssätzen erreicht → Gewicht steigern
   if (last.min >= hi) {
-    const jump = last.min >= hi + 4 ? step * 2 : step;
-    const w = roundTo(last.w + jump, eq === 'dumbbell' && last.w < 20 ? 1 : 1.25);
-    return { kind: 'up', w, reps: [lo, hi], target: lo + 1, head: `${fmtNum(w)} kg × ${lo}–${lo + 2}`,
-      why: `Letztes Mal alle Sätze mit ${hi}+ Wdh. bei ${fmtNum(last.w)} kg → Gewicht steigern, Wdh. starten wieder unten.` };
+    const w = raise(exId, last.w, last.min >= hi + 4 ? 2 : 1);
+    return { kind: 'up', w, reps: [lo, hi], target: lo + 1, head: `${fmtW(w)} × ${lo}–${lo + 2}`,
+      why: `Letztes Mal alle Sätze mit ${hi}+ Wdh. bei ${fmtW(last.w)} → Gewicht steigern, Wdh. starten wieder unten.` };
   }
   // Im Bereich → gleiches Gewicht, Wiederholungen steigern
   if (last.min >= lo) {
     const t = Math.min(hi, last.reps[0] + 1);
-    return { kind: 'reps', w: last.w, reps: [lo, hi], target: t, head: `${fmtNum(last.w)} kg × ${t}`,
+    return { kind: 'reps', w: last.w, reps: [lo, hi], target: t, head: `${fmtW(last.w)} × ${t}`,
       why: `Letztes Mal ${last.reps.join(' / ')} Wdh. – gleiches Gewicht, in jedem Satz eine Wdh. mehr. Bei ${hi} Wdh. in allen Sätzen geht's hoch.` };
   }
   // Unter dem Bereich
   const justRaised = prev && prev.w < last.w;
   const twiceLow = prev && prev.w === last.w && prev.min < lo;
   if (twiceLow) {
-    const w = roundTo(last.w * 0.9, 1.25);
-    return { kind: 'down', w, reps: [lo, hi], target: lo + 2, head: `${fmtNum(w)} kg × ${lo + 2}`,
-      why: `Zweimal unter ${lo} Wdh. bei ${fmtNum(last.w)} kg → ca. 10 % leichter und sauber neu aufbauen.` };
+    const w = lower10(last.w);
+    return { kind: 'down', w, reps: [lo, hi], target: lo + 2, head: `${fmtW(w)} × ${lo + 2}`,
+      why: `Zweimal unter ${lo} Wdh. bei ${fmtW(last.w)} → ca. 10 % leichter und sauber neu aufbauen.` };
   }
-  return { kind: 'hold', w: last.w, reps: [lo, hi], target: lo, head: `${fmtNum(last.w)} kg × ${lo}+`,
+  return { kind: 'hold', w: last.w, reps: [lo, hi], target: lo, head: `${fmtW(last.w)} × ${lo}+`,
     why: justRaised ? `Gewicht wurde gerade gesteigert – halten, bis du ${lo}+ Wdh. schaffst.`
       : `Letztes Mal unter ${lo} Wdh. – Gewicht halten und Wiederholungen aufbauen.` };
 }
@@ -166,14 +183,15 @@ export function suggest(exId) {
 // ---------- Scheibenrechner ----------
 
 export const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+export const PLATES_LB = [45, 35, 25, 10, 5, 2.5];
 
-/** Scheiben pro Seite für ein Gesamtgewicht. Rückgabe { plates: [..], rest, perSide } */
-export function platesFor(total, bar = 20) {
+/** Scheiben pro Seite für ein Gesamtgewicht (in der gewählten Einheit). Rückgabe { plates: [..], rest, perSide } */
+export function platesFor(total, bar = 20, set = PLATES) {
   let side = (total - bar) / 2;
   if (side < 0) return { plates: [], rest: 0, perSide: 0, tooLight: true };
   const perSide = side;
   const plates = [];
-  for (const p of PLATES) {
+  for (const p of set) {
     while (side >= p - 1e-9) { plates.push(p); side -= p; }
   }
   return { plates, rest: Math.round(side * 2 * 100) / 100, perSide };
