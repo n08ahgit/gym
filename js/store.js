@@ -21,7 +21,8 @@
 //   body: [ { date: "2026-11-24", kg: 75.2 } ],       // Körpergewicht, 1 Wert pro Tag
 //   profile: { id, name, code: "K7Q2MX", key },      // Code = kurzer Freundes-Code, key = geheim
 //   friends: [ { id, name, t: ms, stats: {…} } ],     // zuletzt erhaltener Stand
-//   settings: { bar: 20 }                             // Stangengewicht (Scheibenrechner)
+//   drinks: [ { id, t, date, key, name, ml, mg } ],  // Energy-Drinks / Koffein
+//   settings: { bar: 20, removed: [codes] }           // Stangengewicht, entfernte Freunde
 // }
 //
 // Laufendes Workout separat unter "gym.active.v1" (siehe workout.js).
@@ -38,7 +39,7 @@ const ACTIVE_KEY = 'gym.active.v1';
 export const SCHEMA = 1;
 
 function emptyData() {
-  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], settings: { bar: 20 } };
+  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], settings: { bar: 20 } };
 }
 
 /** Bringt (auch importierte) Daten in eine saubere, gültige Form. */
@@ -69,6 +70,7 @@ export function normalize(d) {
     if (/^[A-Z2-9]{6}$/.test(d.profile.code || '') && typeof d.profile.key === 'string') { out.profile.code = d.profile.code; out.profile.key = d.profile.key; }
   }
   if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
+  if (Array.isArray(d.drinks)) out.drinks = d.drinks.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.mg >= 0 && x.mg < 2000);
   if (d.settings && typeof d.settings === 'object') out.settings = { ...out.settings, ...d.settings };
   return out;
 }

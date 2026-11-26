@@ -21,6 +21,7 @@ import { computeStreak } from './streak.js';
 import { e1rm } from './stats.js';
 import { bodyTrend } from './coach.js';
 import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
+import { caffeineStats } from './drinks.js';
 
 export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' };
 
@@ -43,7 +44,8 @@ export function myStats(today = new Date()) {
   }
   const st = computeStreak(today);
   const bt = bodyTrend();
-  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null };
+  const caf = caffeineStats(7, today);
+  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top };
 }
 
 // ---------- Kodierung (Base64url, Umlaute-sicher) ----------
@@ -88,6 +90,38 @@ export function shortCode() {
 export const shortLink = () => `${SHARE_BASE}/f/${shortCode()}`;
 
 let lastPublish = 0;
+let linkedOnce = false;
+
+/** Dem Freund mit diesem Code mitteilen, dass ich ihn hinzugefügt habe. */
+export async function linkTo(code) {
+  if (!API || !data.profile.code || !data.profile.name || window.GYM_DEMO) return false;
+  try {
+    const r = await fetch(`${API}/friend/link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: data.profile.code, key: data.profile.key, to: code }) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Wer hat mich hinzugefügt? Diese Freunde automatisch übernehmen (außer selbst entfernt). */
+export async function syncInbox() {
+  if (!API || !data.profile.code || window.GYM_DEMO) return [];
+  try {
+    const r = await fetch(`${API}/friend/inbox`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: data.profile.code, key: data.profile.key }) });
+    if (!r.ok) return [];
+    const { codes } = await r.json();
+    const removed = data.settings.removed || [];
+    const added = [];
+    for (const c of codes) {
+      if (c === data.profile.code || removed.includes(c) || data.friends.some((f) => f.code === c)) continue;
+      try { const f = await fetchFriend(c); data.friends.push(f); added.push(f.name); } catch { /* weg */ }
+    }
+    if (added.length) save();
+    return added;
+  } catch {
+    return [];
+  }
+}
 /** Eigenen Stand beim Server ablegen (höchstens alle 2 Minuten, außer force). */
 export async function publishMe(force = false) {
   if (!API || !data.profile.name || window.GYM_DEMO) return false; // Demo-Daten nie hochladen
@@ -99,6 +133,8 @@ export async function publishMe(force = false) {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
       body: JSON.stringify({ code: data.profile.code, key: data.profile.key, name: data.profile.name, stats: myStats() }),
     });
+    // Einmal pro Sitzung: allen Freunden mitteilen, dass ich sie habe (→ sie bekommen mich automatisch)
+    if (res.ok && !linkedOnce) { linkedOnce = true; data.friends.filter((f) => f.code).forEach((f) => linkTo(f.code)); }
     return res.ok;
   } catch {
     return false;
@@ -123,7 +159,7 @@ export function parseShort(input) {
 
 /** Stand aller Freunde mit Code neu laden. Rückgabe: true, wenn sich etwas geändert hat. */
 export async function refreshFriends() {
-  let changed = false;
+  let changed = (await syncInbox()).length > 0;
   await Promise.all(data.friends.filter((f) => f.code).map(async (f) => {
     try {
       const n = await fetchFriend(f.code);
@@ -154,12 +190,16 @@ export function upsertFriend(f) {
     return 'updated';
   }
   data.friends.push(f);
+  if (f.code && data.settings.removed) data.settings.removed = data.settings.removed.filter((c) => c !== f.code);
   save();
   return 'new';
 }
 
 export function removeFriend(id) {
-  data.friends = data.friends.filter((f) => f.id !== id);
+  const f = data.friends.find((x) => x.id === id);
+  // Entfernte nicht über den Posteingang wieder automatisch hinzufügen
+  if (f?.code) data.settings.removed = [...new Set([...(data.settings.removed || []), f.code])];
+  data.friends = data.friends.filter((x) => x.id !== id);
   save();
 }
 
@@ -177,6 +217,7 @@ export const BOARDS = {
   streak: { label: 'Streak', unit: 'Tage', sub: 'aktuelle Serie', val: (st) => st.s },
   volume: { label: 'Volumen', unit: 'kg', sub: 'letzte 4 Wochen', val: (st) => st.v4 },
   strength: { label: 'Kraft', unit: '× KG', sub: 'Bank + Kniebeuge + Kreuzheben ÷ Körpergewicht', val: relStrength },
+  caffeine: { label: 'Koffein', unit: 'mg', sub: 'Koffein der letzten 7 Tage', val: (st) => (typeof st.c7 === 'number' ? st.c7 : null) },
 };
 
 /** Rangliste inkl. mir. Einträge ohne Wert stehen unten. */

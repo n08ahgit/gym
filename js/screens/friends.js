@@ -7,7 +7,9 @@
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig } from '../util.js';
-import { BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends } from '../friends.js';
+import { BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
+import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices } from '../drinks.js';
+import { parseNum, fmtClock } from '../util.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 
@@ -43,7 +45,7 @@ export const friendsScreen = {
   render(params) {
     const key = params.board || 'consistency';
     const rows = leaderboard(key);
-    const seg = `<div class="seg-wrap seg-4" role="tablist" aria-label="Wertung">${Object.entries(BOARDS)
+    const seg = `<div class="seg-wrap seg-5" role="tablist" aria-label="Wertung">${Object.entries(BOARDS)
       .map(([k, b]) => `<button class="seg-item${k === key ? ' on' : ''}" role="tab" aria-selected="${k === key}" data-action="board" data-k="${k}">${b.label}</button>`)
       .join('')}</div>`;
 
@@ -64,6 +66,8 @@ export const friendsScreen = {
         ${noFriends ? '<p class="note">Noch keine Freunde. Schick deinen Code per WhatsApp – fügt ihr euch gegenseitig hinzu, seht ihr euch in der Rangliste. Die Zahlen aktualisieren sich danach von selbst.</p>'
           : `<p class="note">${gapText(key, rows)}</p>`}
       </section>
+
+      ${caffeineCard()}
 
       <section class="card">
         <div class="card-head"><h2>Freund hinzufügen</h2></div>
@@ -126,6 +130,7 @@ export const friendsScreen = {
       } catch (e) { toast(e.message); }
     },
     friend: (el) => openFriend(el.dataset.id),
+    drinks: () => openDrinkSheet(),
   },
 };
 
@@ -140,6 +145,10 @@ export async function addFromCode(input) {
   const r = upsertFriend(f);
   if (r === 'self') { toast('Das ist dein eigener Link'); return false; }
   if (r === 'old') { toast(`Du hast schon einen neueren Stand von ${f.name}`); return false; }
+  if (f.code) {
+    if (data.profile.name) publishMe(true).then(() => linkTo(f.code));
+    else setTimeout(() => toast(`Trag unten deinen Namen ein, dann erscheinst du auch bei ${f.name}`), 2600);
+  }
   toast(r === 'new' ? `${f.name} ist jetzt in deiner Rangliste` : `Stand von ${f.name} aktualisiert`);
   return true;
 }
@@ -163,7 +172,9 @@ function openFriend(id) {
       ${row('Beste Streak', me.b, f.stats.b)}
       ${Object.entries(BIG3).map(([k, n]) => row(`${n} (1RM)`, me.e[k], f.stats.e?.[k], kg)).join('')}
       ${row('Körpergewicht', me.bw, f.stats.bw, kg)}
+      ${row('Koffein (7 Tage)', me.c7, f.stats.c7, (v) => (v == null ? '–' : `${v} mg`))}
     </ul>
+    ${f.stats.dr?.length ? `<p class="muted small">${esc(f.name)} trinkt am meisten: ${f.stats.dr.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</p>` : ''}
     <div class="sheet-actions"><button class="btn ghost big danger" data-action="del">Aus Rangliste entfernen</button></div>`, {
     del: async () => {
       closeSheet();
@@ -172,4 +183,60 @@ function openFriend(id) {
       render();
     },
   });
+}
+
+// ---------- Energy-Drinks ----------
+
+function caffeineCard() {
+  const today = mgOf(todayDrinks());
+  const week = caffeineStats(7);
+  const pct = Math.min(100, (today / DAILY_LIMIT) * 100);
+  const over = today > DAILY_LIMIT;
+  return `<section class="card caf-card">
+    <div class="card-head"><h2>Energy-Drinks</h2><button class="chip" data-action="drinks">${ICON.plus} Drink</button></div>
+    <div class="caf-row">
+      <div><span class="caf-big">${today}</span><span class="muted small"> mg heute</span></div>
+      <div class="muted small">${week.mg} mg · ${week.n} ${week.n === 1 ? 'Drink' : 'Drinks'} in 7 Tagen</div>
+    </div>
+    <div class="caf-bar${over ? ' over' : ''}"><i style="width:${pct}%"></i></div>
+    <p class="note">${over ? `Über ${DAILY_LIMIT} mg – mehr gilt laut EFSA nicht mehr als unbedenklich. Für heute reicht's.` : `Richtwert: höchstens ${DAILY_LIMIT} mg pro Tag, 200 mg auf einmal (EFSA).`}</p>
+  </section>`;
+}
+
+function openDrinkSheet() {
+  const { recent, all } = drinkChoices();
+  const item = (d) => `<button class="drink" data-action="log" data-id="${esc(d.id)}" data-name="${esc(d.name)}" data-mg="${d.mg}" data-ml="${d.ml || ''}">
+    <span class="drink-name">${esc(d.name)}</span><span class="drink-meta">${d.ml ? `${d.ml} ml · ` : ''}<b>${d.mg} mg</b></span></button>`;
+  const todayList = todayDrinks().slice().reverse().map((x) => `<li><span>${esc(x.name)} <span class="muted small">${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
+    <span class="muted small">${x.mg} mg</span><button class="icon-btn sm" data-action="undo" data-id="${esc(x.id)}" aria-label="Löschen">${ICON.x}</button></li>`).join('');
+  openSheet(`<h2 class="sheet-title">Drink eintragen</h2>
+    ${recent.length ? `<h3 class="sheet-h">Zuletzt</h3><div class="drinks">${recent.map(item).join('')}</div>` : ''}
+    <h3 class="sheet-h">Alle</h3><div class="drinks">${all.filter((d) => !recent.some((r) => r.name === d.name)).map(item).join('')}</div>
+    <h3 class="sheet-h">Eigenes Getränk</h3>
+    <div class="add-row">
+      <input id="dName" class="input" placeholder="Name" maxlength="30" autocomplete="off">
+      <input id="dMg" class="input mg-input" placeholder="mg" inputmode="numeric" autocomplete="off" data-enter="logCustom">
+      <button class="btn" data-action="logCustom">+</button>
+    </div>
+    ${todayList ? `<h3 class="sheet-h">Heute</h3><ul class="plain-list">${todayList}</ul>` : ''}`, {
+    log: (el) => {
+      logDrink({ id: el.dataset.id, name: el.dataset.name, mg: +el.dataset.mg, ml: +el.dataset.ml || null });
+      closeSheet(); afterLog(+el.dataset.mg, el.dataset.name);
+    },
+    logCustom: () => {
+      const name = document.getElementById('dName').value.trim();
+      const mg = parseNum(document.getElementById('dMg').value);
+      if (!name || !mg || Number.isNaN(mg) || mg > 1000) return toast('Name und Koffein in mg eingeben (z. B. 160)');
+      logDrink({ id: 'custom', name, mg: Math.round(mg) });
+      closeSheet(); afterLog(Math.round(mg), name);
+    },
+    undo: (el) => { removeDrink(el.dataset.id); closeSheet(); render(); },
+  });
+}
+
+function afterLog(mg, name) {
+  const today = mgOf(todayDrinks());
+  toast(today > DAILY_LIMIT ? `${name} eingetragen – heute ${today} mg, über dem Richtwert` : `${name} · ${mg} mg eingetragen (heute ${today} mg)`);
+  publishMe(true);
+  render();
 }

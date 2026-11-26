@@ -664,6 +664,21 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 /* Freunde */
 .seg-4 { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; }
 .seg-4 .seg-item { padding: 0 6px; }
+.seg-5 { display: grid; grid-template-columns: repeat(5, 1fr); width: 100%; }
+.seg-5 .seg-item { padding: 0 2px; font-size: 0.765rem; }
+.caf-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.caf-big { font-size: 1.8rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.caf-bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
+.caf-bar i { display: block; height: 100%; border-radius: 2px; background: var(--streak); }
+.caf-bar.over i { background: var(--red); }
+.drinks { display: flex; flex-direction: column; border-radius: var(--radius); background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); overflow: hidden; }
+.drink { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 8px 14px; text-align: left; }
+.drink + .drink { border-top: 0.5px solid var(--separator); }
+.drink:active { background: rgba(255, 255, 255, 0.06); }
+.drink-name { font-weight: 600; }
+.drink-meta { color: var(--muted); font-size: 0.882rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.drink-meta b { color: var(--text); font-weight: 600; }
+.mg-input { flex: 0 0 5.2em !important; text-align: center; }
 .rank-row { gap: 12px; }
 .rank { width: 22px; text-align: center; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .rank-row:nth-of-type(1) .rank { color: #d6b46e; }
