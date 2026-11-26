@@ -30,5 +30,7 @@ export const ICON = {
   plates: svg('<path d="M2 12h20"/><rect x="5" y="6" width="3" height="12" rx="1"/><rect x="16" y="6" width="3" height="12" rx="1"/><rect x="8.5" y="8" width="2" height="8" rx="0.8"/><rect x="13.5" y="8" width="2" height="8" rx="0.8"/>', 20),
   award: svg('<circle cx="12" cy="9" r="6"/><path d="M8.5 13.9L7 22l5-3 5 3-1.5-8.1"/>', 20),
   scale: svg('<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8.5 9.5a5 5 0 0 1 7 0L13 12"/>', 20),
+  food: svg('<path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-1.7 0-3 2.2-3 5v4h3v9"/>'),
+  barcode: svg('<path d="M4 6v12M7 6v12M11 6v12M14 6v12M18 6v12M20 6v12"/>', 20),
   search: svg('<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>', 20),
 };

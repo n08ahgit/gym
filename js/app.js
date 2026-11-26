@@ -21,6 +21,7 @@ import { settingsScreen } from './screens/settings.js';
 import { progressScreen, exstatScreen } from './screens/progress.js';
 import { friendsScreen, addFromCode } from './screens/friends.js';
 import { yearScreen } from './screens/yearview.js';
+import { foodScreen } from './screens/food.js';
 import { autoBackup, requestPersist } from './backup.js';
 
 const screens = {
@@ -34,6 +35,7 @@ const screens = {
   exstat: exstatScreen,
   friends: friendsScreen,
   year: yearScreen,
+  food: foodScreen,
 };
 
 /** Aktionen, die auf jedem Screen gelten (z. B. Tab-Leiste). */
@@ -54,7 +56,7 @@ let modalActions = null;
 
 /** Tiefe je Screen. Tabs (Tiefe 0) blenden über; tiefer = öffnet sich aus dem
  *  angetippten Element, flacher = schrumpft dorthin zurück. */
-const DEPTH = { home: 0, progress: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, search: 2, custom: 3 };
+const DEPTH = { home: 0, progress: 0, food: 0, friends: 0, settings: 0, edit: 1, workout: 1, exstat: 1, year: 1, search: 2, custom: 3 };
 const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 let skipNextTransition = false;
 
@@ -140,7 +142,33 @@ export function render() {
   appEl.dataset.screen = ui.screen;
   s.after?.(appEl, ui.params);
   syncWakeLock();
+  syncBackGuard();
 }
+
+// ---------- Android: Zurück-Taste / Zurück-Geste ----------
+// Ohne das würde "Zurück" die App sofort schließen. So gilt wie bei
+// nativen Android-Apps: Zurück schließt erst den Dialog, dann das
+// Fenster, dann den Unterbildschirm, dann geht es zum Start-Tab –
+// erst auf dem Start-Tab beendet Zurück die App.
+// (Nur Android: Auf dem iPhone gibt es keine Zurück-Taste, dort wischt man.)
+const ANDROID = /Android/i.test(navigator.userAgent);
+let ignorePop = false;
+const needGuard = () => !sheetEl.hidden || !modalEl.hidden || ui.screen !== 'home';
+export function syncBackGuard() {
+  if (!ANDROID) return;
+  const has = !!history.state?.gymGuard;
+  if (needGuard() && !has) history.pushState({ gymGuard: 1 }, '');
+  else if (!needGuard() && has) { ignorePop = true; history.back(); }
+}
+window.addEventListener('popstate', () => {
+  if (!ANDROID) return;
+  if (ignorePop) { ignorePop = false; return; }
+  if (!modalEl.hidden) modalActions?.modalCancel?.();
+  else if (!sheetEl.hidden) closeSheet();
+  else if (BACK_ACTION[ui.screen]) screens[ui.screen].actions?.[BACK_ACTION[ui.screen]]?.();
+  else if (ui.screen !== 'home') go('home');
+  setTimeout(syncBackGuard, 350);
+});
 
 // ---------- Bottom-Sheet & Dialog ----------
 
@@ -157,6 +185,7 @@ export function openSheet(html, actions = {}) {
   const t = sheetEl.querySelector('.sheet-panel > .sheet-title');
   if (t) sheetEl.querySelector('.sheet-bar').append(t);
   sheetEl.hidden = false;
+  syncBackGuard();
   document.documentElement.classList.add('sheet-open');
   // Wischen auf dem abgedunkelten Hintergrund scrollt nie die Seite
   sheetEl.querySelector('.backdrop').addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
@@ -196,6 +225,7 @@ export function closeSheet(instant = false, viaSwipe = false) {
     sheetEl.classList.remove('closing');
     sheetEl.innerHTML = '';
     document.documentElement.classList.remove('sheet-open');
+    syncBackGuard();
   };
   if (instant || reduceMotion()) return finish();
   const panel = sheetEl.querySelector('.sheet-panel');
@@ -254,6 +284,7 @@ export function ask(title, text, okLabel = 'OK', danger = false) {
       modalEl.innerHTML = '';
       modalActions = null;
       resolve(v);
+      setTimeout(syncBackGuard, 0);
     };
     modalActions = { modalOk: () => done(true), modalCancel: () => done(false) };
     modalEl.innerHTML = `<div class="backdrop" data-action="modalCancel"></div>
@@ -264,6 +295,7 @@ export function ask(title, text, okLabel = 'OK', danger = false) {
           <button class="btn ${danger ? 'danger' : 'primary'}" data-action="modalOk">${esc(okLabel)}</button>
         </div></div>`;
     modalEl.hidden = false;
+    syncBackGuard();
   });
 }
 

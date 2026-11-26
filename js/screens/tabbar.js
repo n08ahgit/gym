@@ -1,6 +1,6 @@
 // =============================================================
 // tabbar.js – schwebende Tab-Leiste aus Glas (Training / Fortschritt /
-// Freunde / Einstellungen). Tabs navigieren nur, sie lösen keine Aktionen aus.
+// Ernährung / Freunde / Einstellungen). Tabs navigieren nur, sie lösen keine Aktionen aus.
 // =============================================================
 
 import { ICON } from './icons.js';
@@ -8,6 +8,7 @@ import { ICON } from './icons.js';
 const TABS = [
   ['home', 'Training', ICON.dumbbell],
   ['progress', 'Fortschritt', ICON.chart],
+  ['food', 'Ernährung', ICON.food],
   ['friends', 'Freunde', ICON.users],
   ['settings', 'Einstellungen', ICON.gear],
 ];

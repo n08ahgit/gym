@@ -46,7 +46,7 @@ export const homeScreen = {
         ${todayCard(plan, tIdx, doneToday, active)}
         ${exportDue() ? backupNudge() : ''}
         <section class="card year">${renderYear(year)}</section>
-        ${empty ? '<p class="hint">Tippe auf einen Tag, um dein erstes Workout anzulegen – oder wähle oben rechts eine Vorlage wie Push · Pull · Legs.</p>' : ''}
+        ${empty ? '<p class="hint">Tippe auf einen Tag, um dein erstes Workout anzulegen – oder wähle bei „Plan-Art“ eine Vorlage wie Push · Pull · Legs.</p>' : ''}
         <div class="group-row"><h2 class="group-header">${cycle ? `Rhythmus · ${plan.length} Tage` : 'Wochenplan'}</h2>
           <button class="chip" data-action="planType">${cycle ? 'Anpassen' : 'Plan-Art'}</button></div>
         <section class="week">${days}</section>

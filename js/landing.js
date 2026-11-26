@@ -40,6 +40,7 @@ const FEATURES = [
   [I.info, 'Ausführung & Tipps', 'Zu jeder Übung die wichtigsten Punkte, Wiederholungsbereich, Pause und Tempo.'],
   [I.users, 'Rangliste mit Freunden', 'Konstanz, Streak, Volumen und Kraft im Vergleich – per Link, ohne Konto.'],
   [I.chart, 'Fortschritt & Rekorde', 'Kraftverlauf, Muskelbalance, Körpergewicht und Jahresübersicht.'],
+  [I.plan, 'Kalorien & Protein', 'Tagesziel automatisch berechnet, Lebensmittel suchen oder (Android) Barcode scannen.'],
 ];
 
 const SHOTS = [['home', 'Plan & Streak'], ['workout', 'Workout'], ['progress', 'Fortschritt'], ['friends', 'Freunde']];
@@ -107,7 +108,7 @@ async function render() {
     <header class="ld-hero">
       <img class="ld-icon" src="icons/icon-192.png" alt="" width="72" height="72">
       <h1>Dein Training.<br>Klar geplant, sauber getrackt.</h1>
-      <p class="ld-lead">Trainingsplan, Workout-Tracker mit Pausen-Timer, Fortschritt und Rangliste mit Freunden. Kostenlos, ohne Konto, ohne Werbung.</p>
+      <p class="ld-lead">Trainingsplan, Workout-Tracker mit Pausen-Timer, Kalorien, Fortschritt und Rangliste mit Freunden. Kostenlos, ohne Konto, ohne Werbung. Für iPhone und Android.</p>
       <a class="btn primary big ld-cta" href="#installieren">${isIOS || isAndroid ? 'App installieren' : 'So bekommst du die App'}</a>
     </header>
 

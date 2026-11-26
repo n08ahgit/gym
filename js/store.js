@@ -22,6 +22,8 @@
 //   profile: { id, name, code: "K7Q2MX", key },      // Code = kurzer Freundes-Code, key = geheim
 //   friends: [ { id, name, t: ms, stats: {…} } ],     // zuletzt erhaltener Stand
 //   drinks: [ { id, t, date, key, name, ml, mg } ],  // Energy-Drinks / Koffein
+//   food: [ { id, t, date, name, g, kcal, p, c, f, ref } ], // Kalorien-Tracker
+//   nutrition: { sex, age, height, weight, activity, goal, kcal?, adjust? },
 //   settings: { bar: 20, removed: [codes] }           // Stangengewicht, entfernte Freunde
 // }
 //
@@ -41,7 +43,7 @@ const ACTIVE_KEY = 'gym.active.v1';
 export const SCHEMA = 1;
 
 function emptyData() {
-  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], settings: { bar: 20 } };
+  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], nutrition: {}, settings: { bar: 20 } };
 }
 
 /** Bringt (auch importierte) Daten in eine saubere, gültige Form. */
@@ -73,6 +75,8 @@ export function normalize(d) {
     if (/^[A-Z2-9]{6}$/.test(d.profile.code || '') && typeof d.profile.key === 'string') { out.profile.code = d.profile.code; out.profile.key = d.profile.key; }
   }
   if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
+  if (Array.isArray(d.food)) out.food = d.food.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.kcal >= 0 && x.kcal < 20000);
+  if (d.nutrition && typeof d.nutrition === 'object') out.nutrition = { ...d.nutrition };
   if (Array.isArray(d.drinks)) out.drinks = d.drinks.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.mg >= 0 && x.mg < 2000);
   if (d.settings && typeof d.settings === 'object') out.settings = { ...out.settings, ...d.settings };
   return out;
