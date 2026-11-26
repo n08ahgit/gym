@@ -1,9 +1,11 @@
 // =============================================================
-// home.js – Hauptbildschirm: Jahresübersicht, Wochenplan, Workout-Leiste
+// home.js – Hauptbildschirm: Jahresübersicht, Plan (Woche oder Rhythmus),
+//           Workout-Leiste
 // =============================================================
 
 import { go, render, openSheet, closeSheet, ask, ui, toast } from '../app.js';
-import { currentPlan, data, sessionsByDate, setPlanDays } from '../store.js';
+import { currentPlan, data, sessionsByDate, setPlanDays, currentVersion, currentCycle, planIndex, plannedOf, dayLabel, setPlanCycle, setPlanWeekly } from '../store.js';
+import { PRESETS } from '../presets.js';
 import { WEEKDAYS, WD_SHORT, dateStr, parseDate, addDays, weekdayIdx, esc, fmtClock } from '../util.js';
 import { renderYear, dayInfoText, scrollYearToToday } from '../year.js';
 import { getActive, startWorkout, discardActive } from './workout.js';
@@ -15,8 +17,9 @@ import { exportDue, exportFile, daysSinceExport } from '../backup.js';
 export const homeScreen = {
   render(params) {
     const plan = currentPlan();
+    const cycle = currentCycle();
     const today = new Date();
-    const tIdx = weekdayIdx(today);
+    const tIdx = planIndex(currentVersion() || { days: plan }, dateStr(today));
     const doneToday = sessionsByDate().has(dateStr(today));
     const year = params.year || today.getFullYear();
     const active = getActive();
@@ -27,11 +30,12 @@ export const homeScreen = {
         const isToday = i === tIdx;
         const right = (isToday ? '<span class="today-pill">Heute</span>' : '') +
           (isToday && doneToday ? `<span class="day-check" aria-label="erledigt">${ICON.check}</span>` : `<span class="chev">${ICON.chev}</span>`);
+        const sub = [w ? `${w.exercises.length} ${w.exercises.length === 1 ? 'Übung' : 'Übungen'}` : '', cycle && !isToday ? `nächstes Mal ${nextDateLabel(i, plan.length, tIdx)}` : ''].filter(Boolean).join(' · ');
         return `<button class="day${isToday ? ' today' : ''}${w ? '' : ' rest'}" data-action="openDay" data-idx="${i}">
-          <span class="day-short">${WD_SHORT[i]}</span>
+          <span class="day-short">${cycle ? i + 1 : WD_SHORT[i]}</span>
           <span class="day-main">
             <span class="day-title">${w ? esc(w.name) : 'Pause'}</span>
-            ${w ? `<span class="day-sub">${w.exercises.length} ${w.exercises.length === 1 ? 'Übung' : 'Übungen'}</span>` : ''}
+            ${sub ? `<span class="day-sub">${sub}</span>` : ''}
           </span>${right}</button>`;
       })
       .join('');
@@ -42,8 +46,9 @@ export const homeScreen = {
         ${todayCard(plan, tIdx, doneToday, active)}
         ${exportDue() ? backupNudge() : ''}
         <section class="card year">${renderYear(year)}</section>
-        ${empty ? '<p class="hint">Tippe auf einen Wochentag, um dein erstes Workout anzulegen.</p>' : ''}
-        <h2 class="group-header">Wochenplan</h2>
+        ${empty ? '<p class="hint">Tippe auf einen Tag, um dein erstes Workout anzulegen – oder wähle oben rechts eine Vorlage wie Push · Pull · Legs.</p>' : ''}
+        <div class="group-row"><h2 class="group-header">${cycle ? `Rhythmus · ${plan.length} Tage` : 'Wochenplan'}</h2>
+          <button class="chip" data-action="planType">${cycle ? 'Anpassen' : 'Plan-Art'}</button></div>
         <section class="week">${days}</section>
       </main>
       ${active ? activeBar(active) : ''}
@@ -83,10 +88,11 @@ export const homeScreen = {
     openDay: (el) => openDaySheet(Number(el.dataset.idx)),
     backupNow: async () => { if (await exportFile()) render(); },
     startToday: () => {
-      const idx = weekdayIdx(new Date());
+      const idx = planIndex(currentVersion(), dateStr());
       startWorkout(idx, currentPlan()[idx]);
       go('workout');
     },
+    planType: () => openPlanTypeSheet(),
   },
 };
 
@@ -155,12 +161,17 @@ function todayCard(plan, tIdx, doneToday, active) {
       <p class="muted small">Heute · ${w.exercises.length} Übungen · ${sets} Sätze${doneToday ? ' · heute schon erledigt' : ''}</p>
       <button class="btn ${doneToday ? '' : 'primary '}big" data-action="startToday">${ICON.play} ${doneToday ? 'Nochmal starten' : 'Workout starten'}</button></section>`;
   }
-  // Pausetag: nächstes geplantes Training zeigen
+  // Pausetag: nächstes geplantes Training zeigen (funktioniert für Woche und Rhythmus)
   let next = null;
-  for (let i = 1; i <= 7; i++) { const k = (tIdx + i) % 7; if (plan[k]) { next = [k, plan[k]]; break; } }
+  for (let k = 1; k <= 14 && !next; k++) {
+    const ds = dateStr(addDays(new Date(), k));
+    const nw = plannedOf(currentVersion(), ds);
+    if (nw) next = [ds, nw, k];
+  }
+  const when = next ? (next[2] === 1 ? 'Morgen' : `${WEEKDAYS[weekdayIdx(parseDate(next[0]))]}`) : '';
   return `<section class="card today-card rest">
     <h2 class="today-title">Heute Pausetag</h2>
-    <p class="muted small">${next ? `Nächstes Training: ${WEEKDAYS[next[0]]} · ${esc(next[1].name)}` : 'Erholung gehört zum Training.'}</p></section>`;
+    <p class="muted small">${next ? `Nächstes Training: ${when} · ${esc(next[1].name)}` : 'Erholung gehört zum Training.'}</p></section>`;
 }
 
 /** Tag im Raster markieren, Info anzeigen und sichtbar scrollen. */
@@ -197,7 +208,7 @@ function openDaySheet(idx) {
     ? `<button class="btn ${active ? '' : 'primary '}big" data-action="start">${active ? 'Neu starten' : 'Start'}</button>` : '';
 
   openSheet(
-    `<h2 class="sheet-title">${WEEKDAYS[idx]}${w ? ` · ${esc(w.name)}` : ''}</h2>
+    `<h2 class="sheet-title">${dayLabel(idx)}${w ? ` · ${esc(w.name)}` : ''}</h2>
      ${list}
      <div class="sheet-actions">
        ${active ? '<button class="btn primary big" data-action="resume">Laufendes Workout fortsetzen</button>' : ''}
@@ -227,7 +238,7 @@ function openCopySheet(idx) {
   const plan = currentPlan();
   const w = plan[idx];
   const sel = new Set();
-  const chips = WEEKDAYS.map((name, i) => i === idx ? '' :
+  const chips = plan.map((_, i) => dayLabel(i)).map((name, i) => i === idx ? '' :
     `<button class="copy-day" data-action="pick" data-i="${i}" aria-pressed="false">
       <span class="copy-day-name">${name}</span>
       <span class="copy-day-now">${plan[i] ? esc(plan[i].name) : 'Pause'}</span>
@@ -248,9 +259,91 @@ function openCopySheet(idx) {
       const days = [...sel].sort();
       const over = days.filter((i) => plan[i]);
       closeSheet();
-      if (over.length && !(await ask('Bestehende Workouts ersetzen?', `${over.map((i) => `${WEEKDAYS[i]} (${plan[i].name})`).join(', ')} ${over.length === 1 ? 'wird' : 'werden'} durch „${w.name}“ ersetzt. Vergangene Tage bleiben unverändert.`, 'Ersetzen', true))) return;
+      if (over.length && !(await ask('Bestehende Workouts ersetzen?', `${over.map((i) => `${dayLabel(i)} (${plan[i].name})`).join(', ')} ${over.length === 1 ? 'wird' : 'werden'} durch „${w.name}“ ersetzt. Vergangene Tage bleiben unverändert.`, 'Ersetzen', true))) return;
       setPlanDays(Object.fromEntries(days.map((i) => [i, w])));
-      toast(`„${w.name}“ auf ${days.map((i) => WD_SHORT[i]).join(', ')} kopiert`);
+      toast(`„${w.name}“ auf ${days.map((i) => (currentCycle() ? `Tag ${i + 1}` : WD_SHORT[i])).join(', ')} kopiert`);
+      render();
+    },
+  });
+}
+
+/** "morgen" / "Fr 28.11." – wann Tag i des Rhythmus das nächste Mal dran ist. */
+function nextDateLabel(i, n, tIdx) {
+  const k = ((i - tIdx) % n + n) % n || n;
+  if (k === 1) return 'morgen';
+  const d = addDays(new Date(), k);
+  return `${WD_SHORT[weekdayIdx(d)]} ${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
+// ---------- Plan-Art: Wochenplan oder Rhythmus ----------
+
+function openPlanTypeSheet() {
+  const cycle = currentCycle();
+  const plan = currentPlan();
+  const tIdx = cycle ? planIndex(currentVersion(), dateStr()) : 0;
+  const presets = PRESETS.map((p) => `<button class="drink" data-action="preset" data-id="${p.id}">
+      <span><span class="drink-name">${p.name}</span><br><span class="muted small">${p.sub}</span></span>${ICON.chev}</button>`).join('');
+  const cycleTools = cycle ? `
+    <h3 class="sheet-h">Heute ist</h3>
+    <div class="today-pick">${plan.map((w, i) => `<button class="seg-item${i === tIdx ? ' on' : ''}" data-action="shift" data-i="${i}">Tag ${i + 1}<small>${w ? esc(w.name) : 'Pause'}</small></button>`).join('')}</div>
+    <p class="note">Einen Tag ausgelassen oder verschoben? Hier einstellen, der Rhythmus läuft ab heute von dort weiter.</p>
+    <h3 class="sheet-h">Länge</h3>
+    <div class="row"><button class="btn" data-action="addDay" ${plan.length >= 10 ? 'disabled' : ''}>${ICON.plus} Tag anhängen</button>
+      <button class="btn" data-action="removeDay" ${plan.length <= 2 ? 'disabled' : ''}>${ICON.minus} Letzten Tag entfernen</button></div>` : '';
+  openSheet(`<h2 class="sheet-title">${cycle ? 'Rhythmus anpassen' : 'Plan-Art'}</h2>
+    <p class="muted small sheet-sub">${cycle ? 'Dein Plan läuft im Kreis – unabhängig vom Wochentag.' : 'Jetzt: fester Wochenplan (Mo–So). Für Push · Pull · Legs mit Pausen lieber einen Rhythmus nehmen – der läuft im Kreis, egal welcher Wochentag ist.'}</p>
+    ${cycleTools}
+    <h3 class="sheet-h">${cycle ? 'Neuer Rhythmus aus Vorlage' : 'Rhythmus aus Vorlage'}</h3>
+    <div class="drinks">${presets}
+      <button class="drink" data-action="custom"><span><span class="drink-name">Eigener Rhythmus</span><br><span class="muted small">2–10 Tage, Workouts selbst anlegen</span></span>${ICON.chev}</button></div>
+    ${cycle ? '<div class="sheet-actions"><button class="btn ghost big" data-action="toWeek">Zurück zum Wochenplan (Mo–So)</button></div>' : ''}
+    <p class="note">Vergangene Tage im Jahresraster bleiben unverändert – die Änderung gilt ab heute.</p>`, {
+    preset: async (el) => {
+      const p = PRESETS.find((x) => x.id === el.dataset.id);
+      closeSheet();
+      if (data.planVersions.length && !(await ask(`„${p.name}“ starten?`, 'Dein aktueller Plan wird ab heute ersetzt. Heute ist dann Tag 1. Übungen kannst du danach anpassen.', 'Starten'))) return;
+      setPlanCycle(p.days(), 0);
+      toast(`Rhythmus „${p.name}“ läuft – heute ist Tag 1`);
+      render();
+    },
+    custom: () => openSheet(`<h2 class="sheet-title">Eigener Rhythmus</h2>
+      <p class="muted small sheet-sub">Wie viele Tage, bis es von vorn losgeht? Pausetage mitzählen – z. B. Push, Pull, Legs, Pause = 4.</p>
+      <div class="len-pick">${[2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<button class="seg-item" data-action="len" data-n="${n}">${n}</button>`).join('')}</div>
+      <p class="note">Deine vorhandenen Workouts werden der Reihe nach übernommen, der Rest sind Pausetage. Heute ist Tag 1.</p>`, {
+      len: (el) => {
+        const n = Number(el.dataset.n);
+        const have = currentPlan().filter(Boolean);
+        setPlanCycle(Array.from({ length: n }, (_, i) => have[i] || null), 0);
+        closeSheet();
+        toast(`Rhythmus mit ${n} Tagen – tippe auf einen Tag, um ihn zu füllen`);
+        render();
+      },
+    }),
+    shift: (el) => {
+      setPlanCycle(currentPlan(), Number(el.dataset.i));
+      closeSheet();
+      toast(`Heute ist jetzt Tag ${Number(el.dataset.i) + 1}`);
+      render();
+    },
+    addDay: () => {
+      const days = [...currentPlan(), null];
+      setPlanCycle(days, planIndex(currentVersion(), dateStr()));
+      closeSheet(); render();
+    },
+    removeDay: async () => {
+      const days = currentPlan();
+      const last = days[days.length - 1];
+      closeSheet();
+      if (last && !(await ask(`Tag ${days.length} (${last.name}) entfernen?`, 'Das Workout dieses Tages wird aus dem Rhythmus entfernt.', 'Entfernen', true))) return;
+      const t = planIndex(currentVersion(), dateStr());
+      setPlanCycle(days.slice(0, -1), Math.min(t, days.length - 2));
+      render();
+    },
+    toWeek: async () => {
+      closeSheet();
+      if (!(await ask('Zurück zum Wochenplan?', 'Ab heute gilt wieder ein fester Plan Mo–So. Dein letzter Wochenplan wird übernommen.', 'Wechseln'))) return;
+      const lastWeek = [...data.planVersions].reverse().find((v) => !v.cycle);
+      setPlanWeekly(lastWeek ? lastWeek.days : Array(7).fill(null));
       render();
     },
   });

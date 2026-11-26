@@ -32,7 +32,9 @@
 // Version mit from <= Tag.
 // =============================================================
 
-import { dateStr, clone, uid } from './util.js';
+import { dateStr, clone, uid, parseDate, weekdayIdx, WEEKDAYS } from './util.js';
+
+const validCycle = (c) => !!c && /^\d{4}-\d{2}-\d{2}$/.test(c.start);
 
 const DATA_KEY = 'gym.data.v1';
 const ACTIVE_KEY = 'gym.active.v1';
@@ -48,8 +50,9 @@ export function normalize(d) {
   if (!d || typeof d !== 'object') return out;
   if (Array.isArray(d.planVersions)) {
     out.planVersions = d.planVersions
-      .filter((v) => v && /^\d{4}-\d{2}-\d{2}$/.test(v.from) && Array.isArray(v.days) && v.days.length === 7)
-      .map((v) => ({ from: v.from, days: v.days.map((w) => (w && Array.isArray(w.exercises) ? w : null)) }))
+      .filter((v) => v && /^\d{4}-\d{2}-\d{2}$/.test(v.from) && Array.isArray(v.days)
+        && (validCycle(v.cycle) ? v.days.length >= 2 && v.days.length <= 14 : v.days.length === 7))
+      .map((v) => ({ from: v.from, days: v.days.map((w) => (w && Array.isArray(w.exercises) ? w : null)), ...(validCycle(v.cycle) ? { cycle: { start: v.cycle.start } } : {}) }))
       .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
   }
   if (Array.isArray(d.customExercises)) {
@@ -106,11 +109,40 @@ export function save() {
 
 // ---------- Trainingsplan ----------
 
-/** Aktueller Plan (Kopie): Array mit 7 Einträgen (Workout oder null). */
+// Zwei Plan-Arten:
+//   Wochenplan  – days[0..6] = Mo..So
+//   Rhythmus    – days[0..n-1] wiederholen sich ab cycle.start im Kreis
+//                 (z. B. Push, Pull, Legs, Pause), unabhängig vom Wochentag.
+
+/** Aktuelle Plan-Version (Original, nicht verändern) oder null. */
+export const currentVersion = () => data.planVersions[data.planVersions.length - 1] || null;
+
+/** Aktueller Plan (Kopie): Array mit 7 (Woche) bzw. n (Rhythmus) Einträgen. */
 export function currentPlan() {
-  const v = data.planVersions[data.planVersions.length - 1];
+  const v = currentVersion();
   return v ? clone(v.days) : Array(7).fill(null);
 }
+
+/** Rhythmus des aktuellen Plans ({ start }) oder null bei Wochenplan. */
+export const currentCycle = () => currentVersion()?.cycle || null;
+
+/** Ganze Tage zwischen zwei Datums-Strings (sommerzeitsicher). */
+export const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 864e5);
+
+/** Index im Plan, der an Tag ds gilt (Wochentag bzw. Stelle im Rhythmus). */
+export function planIndex(v, ds) {
+  if (v?.cycle) {
+    const n = v.days.length;
+    return ((daysBetween(v.cycle.start, ds) % n) + n) % n;
+  }
+  return weekdayIdx(parseDate(ds));
+}
+
+/** Geplantes Workout an Tag ds laut Version v (null = Pausetag). */
+export const plannedOf = (v, ds) => (v ? v.days[planIndex(v, ds)] : null);
+
+/** Bezeichnung eines Plan-Tags: "Montag" bzw. "Tag 2". */
+export const dayLabel = (idx, cycle = currentCycle()) => (cycle ? `Tag ${idx + 1}` : WEEKDAYS[idx]);
 
 /** Plan-Version, die an einem Tag galt (oder null, wenn es noch keinen Plan gab). */
 export function planVersionFor(ds) {
@@ -122,7 +154,20 @@ export function planVersionFor(ds) {
   return res;
 }
 
-/** Workout eines Wochentags im aktuellen Plan setzen (null = Pausetag). */
+/** Rhythmus starten/ändern: days = Workouts im Kreis, todayIdx = welcher Tag heute ist. */
+export function setPlanCycle(days, todayIdx = 0) {
+  // Start so wählen, dass heute = todayIdx ist (setDate = sommerzeitsicher)
+  const d = parseDate(dateStr());
+  d.setDate(d.getDate() - (todayIdx % days.length));
+  commitPlan(days.map((w) => (w ? clone(w) : null)), { start: dateStr(d) });
+}
+
+/** Zurück zum Wochenplan (days = 7 Einträge Mo..So). */
+export function setPlanWeekly(days) {
+  commitPlan(days.map((w) => (w ? clone(w) : null)), null);
+}
+
+/** Workout eines Tages im aktuellen Plan setzen (null = Pausetag). */
 export function setPlanDay(idx, workout) {
   const days = currentPlan();
   days[idx] = workout ? clone(workout) : null;
@@ -140,12 +185,15 @@ export function setPlanDays(map) {
  * Neue Plan-Version speichern. Gab es heute schon eine Version, wird sie
  * überschrieben (mehrere Änderungen am selben Tag = eine Version).
  */
-function commitPlan(days) {
+function commitPlan(days, cycle = currentCycle()) {
   const today = dateStr();
-  const last = data.planVersions[data.planVersions.length - 1];
-  if (last && JSON.stringify(last.days) === JSON.stringify(days)) return;
-  if (last && last.from >= today) last.days = days;
-  else data.planVersions.push({ from: today, days });
+  const last = currentVersion();
+  const c = cycle ? { start: cycle.start } : undefined;
+  if (last && JSON.stringify(last.days) === JSON.stringify(days) && JSON.stringify(last.cycle) === JSON.stringify(c)) return;
+  if (last && last.from >= today) {
+    last.days = days;
+    if (c) last.cycle = c; else delete last.cycle;
+  } else data.planVersions.push({ from: today, days, ...(c ? { cycle: c } : {}) });
   save();
 }
 

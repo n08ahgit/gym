@@ -6,7 +6,7 @@
 // =============================================================
 
 import { go, render, ui, openSheet } from '../app.js';
-import { data, sessionsByDate, planVersionFor, currentPlan } from '../store.js';
+import { data, sessionsByDate, planVersionFor, currentVersion, plannedOf } from '../store.js';
 import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, fmtNum, fmtBig, esc } from '../util.js';
 import { dayStatus } from '../year.js';
 import { ICON } from './icons.js';
@@ -108,8 +108,7 @@ function openDay(ds) {
         <ul class="sheet-list">${done.map((e) => `<li><span>${esc(e.name)}</span><span class="muted">${e.sets.map((x) => `${fmtNum(x.w)}×${fmtNum(x.r)}`).join(' · ')}</span></li>`).join('')}</ul>`;
     }).join('');
   } else {
-    const v = st === 'future' ? { days: currentPlan() } : planVersionFor(ds);
-    const w = v?.days[wd];
+    const w = plannedOf(st === 'future' ? currentVersion() : planVersionFor(ds), ds);
     const text = {
       rest: 'Pausetag – laut Plan kein Training.',
       missed: `Verpasst – geplant war ${esc(w?.name || '')}.`,

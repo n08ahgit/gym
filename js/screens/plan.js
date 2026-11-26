@@ -7,7 +7,7 @@
 // =============================================================
 
 import { go, render, ask, toast } from '../app.js';
-import { currentPlan, setPlanDay, addCustomExercise } from '../store.js';
+import { currentPlan, setPlanDay, addCustomExercise, dayLabel } from '../store.js';
 import { WEEKDAYS, esc, fmtClock, clone, uid } from '../util.js';
 import { allExercises, muscleNames, MUSCLES } from '../exercises.js';
 import { searchExercises } from '../search.js';
@@ -61,7 +61,7 @@ export const editScreen = {
     return `
       <header class="topbar">
         <button class="glass-circle" data-action="back" aria-label="Zurück">${ICON.back}</button>
-        <span class="topbar-mid">${WEEKDAYS[idx]}</span>
+        <span class="topbar-mid">${dayLabel(idx)}</span>
         <span class="topbar-spacer"></span>
       </header>
       <main class="content has-footer">
@@ -111,7 +111,7 @@ export const editScreen = {
       go('home');
     },
     makeRest: async () => {
-      if (!(await ask(`${WEEKDAYS[draft.idx]} zum Pausetag machen?`, 'Das Workout dieses Tages wird aus dem Plan entfernt. Vergangene Tage bleiben unverändert.', 'Pausetag', true))) return;
+      if (!(await ask(`${dayLabel(draft.idx)} zum Pausetag machen?`, 'Das Workout dieses Tages wird aus dem Plan entfernt. Vergangene Tage bleiben unverändert.', 'Pausetag', true))) return;
       setPlanDay(draft.idx, null);
       draft = null;
       go('home');

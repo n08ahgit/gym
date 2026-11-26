@@ -12,7 +12,7 @@
 // =============================================================
 
 import { addDays, dateStr, weekdayIdx, MONTHS_SHORT, fmtDateLong, fmtDurationLong, esc, parseDate } from './util.js';
-import { data, planVersionFor, sessionsByDate, currentPlan } from './store.js';
+import { data, planVersionFor, sessionsByDate, currentVersion, plannedOf } from './store.js';
 import { ICON } from './screens/icons.js';
 
 /** Text für Bildschirmleser (Farbe allein reicht nicht). */
@@ -26,7 +26,7 @@ export function dayStatus(ds, today, byDate) {
   if (ds > today) return 'future';
   const v = planVersionFor(ds);
   if (!v) return 'none';
-  const planned = v.days[weekdayIdx(parseDate(ds))];
+  const planned = plannedOf(v, ds);
   if (!planned) return 'rest';
   return ds === today ? 'open' : 'missed';
 }
@@ -98,12 +98,12 @@ export function dayInfoText(ds) {
     }).join(' · ');
   }
   if (st === 'future') {
-    const w = currentPlan()[wd];
+    const w = plannedOf(currentVersion(), ds);
     return head + (w ? `Geplant: ${esc(w.name)}` : 'Pausetag');
   }
   if (st === 'none') return head + 'Noch kein Plan aktiv';
   if (st === 'rest') return head + 'Pausetag';
-  const w = planVersionFor(ds).days[wd];
+  const w = plannedOf(planVersionFor(ds), ds);
   return head + (st === 'open' ? `Heute geplant: ${esc(w.name)}` : `Verpasst – geplant war ${esc(w.name)}`);
 }
 

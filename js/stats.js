@@ -3,7 +3,7 @@
 // kein DOM). Alles wird aus data.sessions + Plan-Versionen abgeleitet.
 // =============================================================
 
-import { data, planVersionFor } from './store.js';
+import { data, planVersionFor, plannedOf } from './store.js';
 import { addDays, dateStr, parseDate, weekdayIdx } from './util.js';
 import { getExercise } from './exercises.js';
 
@@ -36,8 +36,8 @@ function sessionsBetween(from, to) {
 function plannedBetween(from, to) {
   let n = 0;
   for (let d = parseDate(from); dateStr(d) <= to; d = addDays(d, 1)) {
-    const v = planVersionFor(dateStr(d));
-    if (v && v.days[weekdayIdx(d)]) n++;
+    const ds = dateStr(d);
+    if (plannedOf(planVersionFor(ds), ds)) n++;
   }
   return n;
 }

@@ -739,6 +739,17 @@ body::after { bottom: 0; height: calc(var(--safe-bottom) + 30px); z-index: 4; ba
 .s-open-text, .s-future-text, .s-none-text { color: var(--muted); }
 @media (min-width: 560px) { .ym-months { grid-template-columns: repeat(3, 1fr); } }
 
+/* Plan-Art / Rhythmus */
+.group-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 24px 4px 10px; }
+.group-row .group-header { margin: 0; }
+.group-row .chip { min-height: 34px; padding: 0 12px; font-size: 0.824rem; }
+.today-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; padding: 4px; border-radius: 14px; background: rgba(118, 118, 128, 0.2); }
+.today-pick .seg-item { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 52px; padding: 4px; line-height: 1.2; }
+.today-pick small { font-size: 0.706rem; font-weight: 500; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-pick .seg-item.on small { color: var(--text); }
+.len-pick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; padding: 4px; border-radius: 14px; background: rgba(118, 118, 128, 0.2); margin-bottom: 4px; }
+.len-pick .seg-item { min-height: 48px; font-size: 1.059rem; font-variant-numeric: tabular-nums; }
+
 /* ---------- Bildschirmwechsel (View Transitions) ---------- */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 380ms; animation-timing-function: var(--ease-drawer); }
 html[data-nav="forward"]::view-transition-new(root) { animation-name: vt-from-right; }
