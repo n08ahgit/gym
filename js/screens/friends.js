@@ -7,7 +7,7 @@
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
-import { friendImg, setAvatar, isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
+import { sendCheer, friendImg, setAvatar, isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
 import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100, nutrOf, setDrinkNutr } from '../drinks.js';
 import { scanCode, canScan } from '../scanner.js';
 import { parseNum, fmtClock } from '../util.js';
@@ -134,6 +134,8 @@ function presenceStrip() {
       ${avatar(f.name, isLive(f.stats), 52, friendImg(f))}<span class="pr-name">${esc(f.name)}</span><span class="pr-st${isLive(f.stats) ? ' on' : ''}">${status(f.stats)}</span></button>`).join('')}</div>
   </section>`;
 }
+
+const CHEERS = ['Gib alles! 💪', 'Letzter Satz zählt!', 'Stark, weiter so!', '🔥🔥🔥'];
 
 const BOARD_GROUPS = [['Training', ['consistency', 'streak', 'volume', 'strength']], ['Disziplin', ['skips', 'sets']], ['Just for fun', ['caffeine', 'food']]];
 
@@ -332,6 +334,12 @@ function openFriend(id) {
   const usual = top.length ? `Meist ${top.map(([i, , h]) => `${WD1[i]}${h != null ? ` ${hourTxt(h)}` : ''}`).join(' · ')}` : '';
   openSheet(`<h2 class="sheet-title">${esc(f.name)}</h2>
     <div class="fr-status${isLive(st) ? ' on' : ''}"><button class="ava-btn" data-action="zoom" aria-label="Profilbild von ${esc(f.name)} groß anzeigen">${avatar(f.name, isLive(st), 52, friendImg(f))}</button><span class="fr-text"><b>${status(st, true)}</b><span class="muted small">Stand ${ago(f.t)}</span></span></div>
+    ${isLive(st) && f.code ? `<div class="cheer-box">
+      <b>${esc(f.name)} trainiert gerade – schick Motivation!</b>
+      <div class="chips-row">${CHEERS.map((t) => `<button class="chip" data-action="cheerPick" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+      <input id="cheerText" class="input" maxlength="120" placeholder="Eigene Nachricht (optional)" autocomplete="off" data-enter="cheer">
+      <button class="btn primary big full" data-action="cheer">💪 Anfeuern</button>
+    </div>` : ''}
     ${tw ? `<h3 class="sheet-h">Trainiert meist · letzte 8 Wochen</h3>
       <div class="tw-chart" role="img" aria-label="${esc(usual || 'Keine Trainings')}">${tw.map(([n, h], i) => `<div class="tw-col"><span class="tw-bar" style="--k:${n / maxN}"></span><span class="tw-d">${WD1[i]}</span><span class="tw-h">${n ? hourTxt(h).replace(' Uhr', '') : ''}</span></div>`).join('')}</div>
       ${usual ? `<p class="muted small">${usual}</p>` : ''}` : (Array.isArray(st.tw) ? `<p class="muted small">${esc(f.name)} hat in den letzten 8 Wochen noch nicht trainiert.</p>` : '<p class="muted small">Trainingszeiten sieht man, sobald ' + esc(f.name) + ' die neue Version nutzt und sie freigegeben hat.</p>')}
@@ -353,6 +361,19 @@ function openFriend(id) {
     ${f.stats.dr?.length ? `<p class="muted small">${esc(f.name)} trinkt am meisten: ${f.stats.dr.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</p>` : ''}
     <div class="sheet-actions"><button class="btn ghost big danger" data-action="del">Aus Rangliste entfernen</button></div>`, {
     zoom: () => zoomAvatar(f.name, friendImg(f)),
+    cheerPick: (el) => { const i = document.getElementById('cheerText'); if (i) i.value = el.dataset.t; },
+    cheer: async (el) => {
+      if (!data.profile.name) return toast('Bitte zuerst deinen Namen eintragen (Freunde → Hinzufügen)');
+      const text = document.getElementById('cheerText')?.value.trim() || '';
+      el.disabled = true;
+      const r = await sendCheer(f.code, text);
+      el.disabled = false;
+      if (r.error === 'rate') return toast('Kurz warten – höchstens eine Nachricht pro Minute');
+      if (r.error === 'friends') return toast(`${f.name} muss dich auch als Freund haben`);
+      if (r.error) return toast('Senden hat nicht geklappt – Internet prüfen');
+      document.getElementById('cheerText').value = '';
+      toast(r.delivered ? `💪 Angefeuert! ${f.name} bekommt eine Mitteilung` : `💪 Angefeuert! ${f.name} sieht es beim nächsten Öffnen`);
+    },
     del: async () => {
       closeSheet();
       if (!(await ask(`${f.name} entfernen?`, 'Mit einem neuen Link kannst du ihn jederzeit wieder hinzufügen.', 'Entfernen', true))) return;

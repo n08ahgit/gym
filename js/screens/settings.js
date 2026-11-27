@@ -119,9 +119,9 @@ export const settingsScreen = {
     },
 
     pushOn: async () => {
-      try { await pushEnable(); toast('Mitteilungen an'); render(); } catch (e) { toast(e.message); }
+      try { await pushEnable(); toast('Mitteilungen an'); import('../friends.js').then((f) => f.registerPushSub()); render(); } catch (e) { toast(e.message); }
     },
-    pushOff: async () => { await pushDisable(); toast('Mitteilungen aus'); render(); },
+    pushOff: async () => { await pushDisable(); import('../friends.js').then((f) => f.registerPushSub(true)); toast('Mitteilungen aus'); render(); },
     pushTest: async () => {
       const ok = await scheduleRestPush(Date.now() + 10000, 'Test: Noch 10 Sekunden Pause', 'So sieht die Mitteilung vor dem Pausenende aus.');
       if (!ok) return toast('Server nicht erreichbar');

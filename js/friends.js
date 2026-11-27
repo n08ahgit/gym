@@ -180,7 +180,7 @@ export async function publishMe(force = false) {
       body: JSON.stringify({ code: data.profile.code, key: data.profile.key, name: data.profile.name, stats: myStats(), pid: data.profile.id }),
     });
     // Einmal pro Sitzung: allen Freunden mitteilen, dass ich sie habe (→ sie bekommen mich automatisch)
-    if (res.ok && !linkedOnce) { linkedOnce = true; data.friends.filter((f) => f.code).forEach((f) => linkTo(f.code)); }
+    if (res.ok && !linkedOnce) { linkedOnce = true; data.friends.filter((f) => f.code).forEach((f) => linkTo(f.code)); registerPushSub(); }
     return res.ok;
   } catch {
     return false;
@@ -228,6 +228,41 @@ async function upgradeOldFriends() {
   }
   if (changed) save();
   return changed;
+}
+
+// ---------- Anfeuern ----------
+
+/** Eigene Push-Adresse beim Freundes-Code hinterlegen (sonst können Freunde dich nicht anfeuern). sub=null entfernt sie. */
+export async function registerPushSub(remove = false) {
+  if (!API || !data.profile.code || !data.profile.key) return false;
+  let sub = null;
+  try { sub = remove ? null : JSON.parse(localStorage.getItem('gym.push') || 'null')?.sub || null; } catch { /* egal */ }
+  if (!sub && !remove) return false;
+  try {
+    const r = await fetch(`${API}/friend/pushsub`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: data.profile.code, key: data.profile.key, sub }) });
+    return r.ok;
+  } catch { return false; }
+}
+
+/** Motivationsnachricht schicken. Rückgabe: { ok, delivered } oder { error: 'rate' | 'friends' | 'net' } */
+export async function sendCheer(toCode, text = '') {
+  if (!API || !data.profile.code || !data.profile.key) return { error: 'name' };
+  try {
+    const r = await fetch(`${API}/friend/cheer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ from: data.profile.code, key: data.profile.key, to: toCode, text: String(text).slice(0, 120) }) });
+    if (r.status === 429) return { error: 'rate' };
+    if (r.status === 403) return { error: 'friends' };
+    if (!r.ok) return { error: 'net' };
+    return await r.json();
+  } catch { return { error: 'net' }; }
+}
+
+/** Erhaltene Nachrichten abholen (werden danach beim Server gelöscht). */
+export async function fetchCheers() {
+  if (!API || !data.profile.code || !data.profile.key) return [];
+  try {
+    const r = await fetch(`${API}/friend/cheers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: data.profile.code, key: data.profile.key }) });
+    return r.ok ? (await r.json()).cheers || [] : [];
+  } catch { return []; }
 }
 
 /** Eigenes Profilbild setzen (data-URL, klein) oder entfernen (null). */

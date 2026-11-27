@@ -649,5 +649,11 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
   if (e.data.bw) openWeigh();
 });
 
+// Anfeuern: per Push (Nachricht vom Service Worker) oder beim Öffnen abholen
+navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.cheer) import('./cheer.js').then((c) => c.showCheer(e.data.cheer)); });
+const pullCheers = () => import('./friends.js').then((f) => f.fetchCheers()).then((list) => { if (list.length) import('./cheer.js').then((c) => list.forEach(c.showCheer)); }).catch(() => {});
+setTimeout(pullCheers, 1500);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullCheers(); });
+
 // Läuft ein Workout, direkt dorthin (z. B. nach Schließen der App)
 go(startScreen);

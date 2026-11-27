@@ -17,6 +17,7 @@ export const NEWS = [
   { id: 'drinkscan', title: 'Energy-Drinks scannen', text: 'Dose scannen – Name, Menge und Koffein werden übernommen und gemerkt.', where: 'Freunde → Energy-Drinks → „+ Drink“' },
   { id: 'live', title: 'Sehen, wer gerade trainiert', text: 'Oben bei Freunde: wer im Gym ist, wann zuletzt – und an welchen Tagen und Uhrzeiten jemand meist trainiert (Freund antippen). Abschaltbar bei „Hinzufügen“.', where: 'Freunde' },
   { id: 'avatar', title: 'Profilbilder', text: 'Eigenes Foto wählen – Freunde sehen es in der Leiste und in der Rangliste.', where: 'Freunde → „Hinzufügen“' },
+  { id: 'cheer', title: 'Freunde anfeuern', text: 'Trainiert ein Freund gerade (grüner Ring), kannst du ihm eine Motivationsnachricht schicken – mit eigenem Text oder ohne.', where: 'Freunde → Freund antippen' },
 ];
 
 const KEY = 'gym.newsSeen';

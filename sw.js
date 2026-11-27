@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v78';
+const CACHE = 'gym-v79';
 
 const FILES = [
   './',
@@ -77,6 +77,7 @@ const FILES = [
   './js/screens/plan.js',
   './js/screens/workout.js',
   './js/supps.js',
+  './js/cheer.js',
   './js/scanner.js',
   './js/news.js',
   './js/screens/suppui.js',
@@ -121,6 +122,8 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data?.text() }; }
+  // Anfeuern: offene App zeigt zusätzlich ein Banner
+  if (d.cheer) e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => cs.forEach((c) => c.postMessage({ cheer: d.cheer }))));
   e.waitUntil(self.registration.showNotification(d.title || 'Pause vorbei', {
     body: d.body || 'Weiter geht\'s',
     tag: d.tag || 'rest',
