@@ -27,12 +27,11 @@ function newsCard() {
       <span class="news-title">${fresh.has(n.id) ? '<i class="news-new">Neu</i>' : ''}${esc(n.title)}</span>
       <span class="news-text">${esc(n.text)}</span>
       <span class="news-foot"><span class="news-where">${ICON.chev}${esc(n.where)}</span>
-        <span class="news-acts">${fresh.has(n.id) ? `<button class="news-act" data-action="newsSeen" data-id="${esc(n.id)}">${ICON.check} Gesehen</button>` : ''}<button class="news-act del" data-action="newsDel" data-id="${esc(n.id)}" aria-label="${esc(n.title)} löschen">${ICON.trash} Löschen</button></span></span></li>`).join('');
+        <span class="news-acts"><button class="news-act del" data-action="newsDel" data-id="${esc(n.id)}" aria-label="${esc(n.title)} löschen">${ICON.trash} Löschen</button></span></span></li>`).join('');
   return `<section class="card news-card${open ? ' open' : ''}" id="news">
     <button class="news-toggle" data-action="newsToggle" aria-expanded="${open}" aria-controls="newsList">
       <h2>Neuheiten</h2>${fresh.size ? `<span class="news-count">${fresh.size} neu</span>` : `<span class="muted small">${list.length || ''}</span>`}<span class="news-chev">${ICON.chevDown}</span></button>
     <div class="news-body" id="newsList"><div class="news-inner">
-      ${fresh.size > 1 ? '<button class="text-btn news-all" data-action="newsAllSeen">Alle als gesehen markieren</button>' : ''}
       ${rows ? `<ul class="news-list">${rows}</ul>` : '<p class="muted small news-empty">Keine Neuheiten – neue Funktionen erscheinen hier.</p>'}
     </div></div>
   </section>`;
@@ -75,6 +74,9 @@ export const settingsScreen = {
   },
 
   after(root) {
+    // Angeschaut = gesehen: roter Punkt weg (die „Neu“-Markierung bleibt bis zum nächsten Öffnen sichtbar)
+    markSeen();
+    document.querySelector('.tab-dot')?.remove();
     // Neuheiten gelten als gelesen, sobald man sie gesehen hat (Markierung „Neu“ bleibt bis zum nächsten Öffnen)
   },
 
@@ -83,8 +85,6 @@ export const settingsScreen = {
 
     export: async () => { if (await exportFile()) render(); },
 
-    newsSeen: (el) => { markSeen(el.dataset.id); render(); },
-    newsAllSeen: () => { markSeen(); render(); },
     newsDel: (el) => { hideNews(el.dataset.id); render(); },
     newsToggle: (el) => {
       const card = el.closest('.news-card');
