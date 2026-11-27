@@ -1170,3 +1170,7 @@ html.kb-open .sheet-panel { padding-bottom: 16px; }
 .news-act.del { background: none; color: var(--muted); }
 .news-all { color: var(--accent); font-weight: 600; font-size: 0.85rem; margin-bottom: 2px; }
 .news-empty { padding: 4px 0; }
+/* Löschen immer unten rechts – auch wenn der Ort umbricht */
+.news-foot { align-items: flex-end; }
+.news-acts { margin-left: auto; align-self: flex-end; }
+.news-new { flex: none; white-space: nowrap; overflow-wrap: normal; }
