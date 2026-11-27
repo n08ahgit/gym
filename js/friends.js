@@ -47,6 +47,7 @@ export function myStats(today = new Date()) {
       }
     }
   }
+  for (const p of data.prs || []) if (p.date >= from90 && BIG3[p.exId]) e[p.exId] = Math.max(e[p.exId] || 0, Math.round(e1rm(p.w, p.r) * 2) / 2);
   const st = computeStreak(today);
   const bt = bodyTrend();
   const caf = caffeineStats(7, today);

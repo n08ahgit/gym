@@ -1200,3 +1200,13 @@ html.kb-open .sheet-panel { padding-bottom: 16px; }
 .cheer-box .chips-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
 .cheer-box .chip { min-height: 34px; font-size: 0.82rem; padding: 0 12px; }
 .cheer-box .btn { margin-top: 10px; }
+
+/* ---------- Rekord eintragen ---------- */
+.card-sub { margin: -6px 0 8px; }
+.search-bar.in-sheet { position: static; padding: 0 0 10px; background: none; }
+.search-bar.in-sheet .input { width: 100%; }
+.pr-results { max-height: min(52vh, 420px); overflow-y: auto; overscroll-behavior: contain; border-radius: var(--radius-lg); }
+.pr-results .result:last-child { border-bottom: 1px solid var(--hairline); border-bottom-left-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-lg); }
+.pr-ex-name { font-weight: 700; font-size: 1.059rem; margin: 0 0 10px; overflow-wrap: anywhere; }
+.list-row.pr-ex { margin-bottom: 10px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--hairline); }
+.pr-est { min-height: 1.2em; margin: 8px 0 2px; color: var(--accent); font-weight: 600; }

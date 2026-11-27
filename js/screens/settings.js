@@ -148,7 +148,7 @@ export const settingsScreen = {
     },
 
     resetTraining: async () => {
-      if (!data.sessions.length) return toast('Noch keine Workouts – du startest schon bei null');
+      if (!data.sessions.length && !data.prs.length) return toast('Noch keine Workouts – du startest schon bei null');
       if (!(await confirm3([
         ['Fortschritt zurücksetzen?', `Alle ${data.sessions.length} Workouts, Rekorde, Streak und Kraftverlauf werden gelöscht – du startest bei null. Plan, Freunde, Ernährung, Supplements und Körpergewicht bleiben.`, 'Weiter'],
         ['Wirklich sicher?', 'Dein ganzer Trainingsverlauf ist danach weg. Vorher wird eine Sicherung gemacht (14 Tage unter „Datensicherung“).', 'Ja, sicher'],

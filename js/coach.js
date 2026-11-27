@@ -234,6 +234,13 @@ export function bestBefore(exId) {
       }
     }
   }
+  // selbst eingetragene Rekorde zählen als Vergleich mit
+  for (const p of data.prs || []) {
+    if (p.exId !== exId) continue;
+    count++;
+    best = Math.max(best, e1rm(p.w, p.r));
+    heaviest = Math.max(heaviest, p.w);
+  }
   return { best, heaviest, count };
 }
 

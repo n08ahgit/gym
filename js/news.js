@@ -18,6 +18,7 @@ export const NEWS = [
   { id: 'live', title: 'Sehen, wer gerade trainiert', text: 'Oben bei Freunde: wer im Gym ist, wann zuletzt – und an welchen Tagen und Uhrzeiten jemand meist trainiert (Freund antippen). Abschaltbar bei „Hinzufügen“.', where: 'Freunde' },
   { id: 'avatar', title: 'Profilbilder', text: 'Eigenes Foto wählen – Freunde sehen es in der Leiste und in der Rangliste.', where: 'Freunde → „Hinzufügen“' },
   { id: 'cheer', title: 'Freunde anfeuern', text: 'Trainiert ein Freund gerade (grüner Ring), kannst du ihm eine Motivationsnachricht schicken – mit eigenem Text oder ohne.', where: 'Freunde → Freund antippen' },
+  { id: 'prs', title: 'Rekorde selbst eintragen', text: 'Bestwerte von vor der App oder aus einem Maximaltest eintragen – zählen als Bestwert, für die Rekord-Erkennung im Workout und in der Freunde-Rangliste.', where: 'Fortschritt → Kraft → „+ Rekord“' },
 ];
 
 const KEY = 'gym.newsSeen';

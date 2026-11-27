@@ -23,6 +23,15 @@ export const RANGES = {
 
 const doneSets = (ex) => ex.sets.filter((s) => s.status === 'done');
 
+/** Selbst eingetragene Rekorde einer Übung (oder alle). */
+export const manualPrs = (exId = null) => (data.prs || []).filter((p) => !exId || p.exId === exId);
+/** Bester eingetragener Rekord als { value (1RM), w, r, date } oder null. */
+export function bestManual(exId) {
+  let b = null;
+  for (const p of manualPrs(exId)) { const v = e1rm(p.w, p.r); if (!b || v > b.value) b = { value: v, w: p.w, r: p.r, date: p.date, manual: true }; }
+  return b;
+}
+
 /** Montag der Woche eines Datums. */
 function monday(d) {
   return addDays(d, -weekdayIdx(d));
@@ -109,7 +118,7 @@ export function strength(rangeKey, today = new Date()) {
     const inRange = e.points.filter((p) => p.date >= from);
     if (!inRange.length) continue;
     const first = inRange[0].value, last = inRange[inRange.length - 1].value;
-    const best = Math.max(...e.points.map((p) => p.value));
+    const best = Math.max(...e.points.map((p) => p.value), bestManual(e.exId)?.value || 0);
     res.push({ ...e, inRange, first, last, best, change: last - first });
   }
   return res.sort((a, b) => b.inRange.length - a.inRange.length || a.name.localeCompare(b.name, 'de'));
@@ -151,19 +160,19 @@ export function muscleSets(rangeKey, today = new Date()) {
 
 /** Rekorde: Trainings, in denen eine Übung einen neuen Bestwert (1RM) erreicht hat. Neueste zuerst. */
 export function records(limit = 6) {
+  // alle Sätze + eingetragene Rekorde chronologisch; ein Eintrag ist immer ein Rekord-Ereignis
+  const ev = [];
+  for (const s of data.sessions) for (const ex of s.exercises) for (const st of doneSets(ex)) if (st.w && st.r) ev.push({ date: s.date, t: s.start || 0, exId: ex.exId, name: ex.name, w: st.w, r: st.r });
+  for (const p of manualPrs()) ev.push({ date: p.date, t: 0, exId: p.exId, w: p.w, r: p.r, manual: true, id: p.id });
+  ev.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.t - b.t));
   const best = new Map();
   const out = [];
-  for (const s of data.sessions) {
-    for (const ex of s.exercises) {
-      for (const st of doneSets(ex)) {
-        if (!st.w || !st.r) continue;
-        const v = e1rm(st.w, st.r);
-        const prev = best.get(ex.exId);
-        if (prev === undefined || v > prev + 0.01) {
-          if (prev !== undefined) out.push({ date: s.date, exId: ex.exId, name: getExercise(ex.exId)?.name || ex.name, w: st.w, r: st.r, value: v, gain: v - prev });
-          best.set(ex.exId, v);
-        }
-      }
+  for (const x of ev) {
+    const v = e1rm(x.w, x.r);
+    const prev = best.get(x.exId);
+    if (prev === undefined || v > prev + 0.01) {
+      if (prev !== undefined || x.manual) out.push({ date: x.date, exId: x.exId, name: getExercise(x.exId)?.name || x.name || 'Übung', w: x.w, r: x.r, value: v, gain: prev === undefined ? null : v - prev, manual: !!x.manual, id: x.id });
+      best.set(x.exId, v);
     }
   }
   // pro Übung und Tag nur den höchsten Rekord
@@ -219,6 +228,7 @@ export function funFacts() {
       }
     }
   }
+  for (const p of manualPrs()) { const v = e1rm(p.w, p.r); if (!strongest || v > strongest.value) strongest = { exId: p.exId, name: getExercise(p.exId)?.name || 'Übung', value: v, w: p.w, r: p.r }; }
   const fav = [...setsPer.entries()].sort((a, b) => b[1] - a[1])[0];
   // längste Serie: Wochen in Folge mit Plan erfüllt
   let best = 0, cur = 0;

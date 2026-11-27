@@ -26,6 +26,7 @@
 //   water: [ { id, t, date, ml } ],
 //   meals: [ { id, name, servings, items: [ { food (Werte je 100 g), g } ] } ],  // eigene Gerichte
 //   myFoods: [ { id: 'u:…', name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid?, code? } ], // eigene Lebensmittel (je 100 g)
+//   prs: [ { id, exId, w (kg), r, date } ],        // selbst eingetragene Rekorde (zählen als Bestwert)
 //   supps: [ { id, name, dose, time: 'HH:MM', rep: { type: 'daily'|'days'|'every'|'once', days, n, start }, hint, nag } ],
 //   suppDone: { 'YYYY-MM-DD': [ids] },             // abgehakte Supplements
 //   nutrition: { sex, age, height, weight, bodyFat?, job, steps?, trainDays, trainMin, sport, sportHours, level, goal, targetWeight?, targetDate?, kcal?, adjust? },
@@ -49,7 +50,7 @@ const ACTIVE_KEY = 'gym.active.v1';
 export const SCHEMA = 1;
 
 function emptyData() {
-  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], water: [], meals: [], myFoods: [], myDrinks: [], drinkNutr: {}, supps: [], suppDone: {}, nutrition: {}, settings: { bar: 20 } };
+  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], water: [], meals: [], myFoods: [], prs: [], myDrinks: [], drinkNutr: {}, supps: [], suppDone: {}, nutrition: {}, settings: { bar: 20 } };
 }
 
 /** Bringt (auch importierte) Daten in eine saubere, gültige Form. */
@@ -87,6 +88,7 @@ export function normalize(d) {
   if (Array.isArray(d.meals)) out.meals = d.meals.filter((m) => m && m.id && m.name && Array.isArray(m.items) && m.items.length);
   if (d.drinkNutr && typeof d.drinkNutr === 'object') out.drinkNutr = d.drinkNutr;
   if (Array.isArray(d.myDrinks)) out.myDrinks = d.myDrinks.filter((x) => x && /^\d{8,14}$/.test(x.code || '') && x.name && x.mg >= 0 && x.mg <= 1000).slice(0, 200);
+  if (Array.isArray(d.prs)) out.prs = d.prs.filter((x) => x && x.id && x.exId && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.w > 0 && x.w < 1000 && x.r >= 1 && x.r <= 50).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 500);
   if (Array.isArray(d.myFoods)) out.myFoods = d.myFoods.filter((x) => x && x.id && x.name && x.kcal >= 0 && x.kcal <= 950).slice(0, 500);
   if (Array.isArray(d.supps)) out.supps = d.supps.filter((x) => x && x.id && x.name && /^\d{2}:\d{2}$/.test(x.time)).slice(0, 30);
   if (d.suppDone && typeof d.suppDone === 'object') {
@@ -290,6 +292,22 @@ export function setBodyWeight(ds, kg) {
   save();
 }
 
+// ---------- Eingetragene Rekorde (z. B. von vor der App) ----------
+
+/** Rekord speichern (neu oder ändern). w immer in kg. */
+export function savePr(pr) {
+  const x = { id: pr.id || uid(), exId: pr.exId, w: pr.w, r: pr.r, date: pr.date };
+  data.prs = data.prs.filter((p) => p.id !== x.id);
+  data.prs.push(x);
+  data.prs.sort((a, b) => (a.date < b.date ? -1 : 1));
+  save();
+  return x;
+}
+export function deletePr(id) {
+  data.prs = data.prs.filter((p) => p.id !== id);
+  save();
+}
+
 // ---------- Eigene Übungen ----------
 
 export function addCustomExercise(ex) {
@@ -348,6 +366,7 @@ export function importJSON(text) {
 export function resetTraining() {
   const cur = currentVersion();
   data.sessions = [];
+  data.prs = [];
   data.planVersions = cur ? [{ ...clone(cur), from: dateStr() }] : [];
   localStorage.removeItem(ACTIVE_KEY);
   save();

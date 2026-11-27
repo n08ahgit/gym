@@ -15,7 +15,7 @@ import { data, setBodyWeight, exUnit } from '../store.js';
 import { esc, fmtNum, fmtBig, fmtDurationLong, fmtDateLong, parseDate, WEEKDAYS, dateStr, parseNum, fmtSet, fmtW, fmtWU, toU, toW, fromW, wu, fmtVol } from '../util.js';
 import { bodyTrend } from '../coach.js';
 import { MUSCLES, getExercise } from '../exercises.js';
-import { RANGES, overview, weekly, strength, muscleSets, records, exerciseHistory, funFacts } from '../stats.js';
+import { RANGES, overview, weekly, strength, muscleSets, records, exerciseHistory, funFacts, bestManual } from '../stats.js';
 import { columnChart, lineChart, sparkline } from '../charts.js';
 import { bodyHeat } from '../bodyimage.js';
 import { tabBar } from './tabbar.js';
@@ -23,6 +23,7 @@ import { computeStreak } from '../streak.js';
 import { ICON } from './icons.js';
 import { weighRem, setWeighRem, markWeighed } from '../supps.js';
 import { pushNote } from './suppui.js';
+import { openPrSheet, prRows } from './prsheet.js';
 
 const kgOrT = (kg) => fmtVol(kg);
 const shortDate = (ds) => { const d = parseDate(ds); return `${d.getDate()}.${d.getMonth() + 1}.`; };
@@ -54,14 +55,14 @@ export const progressScreen = {
           <div class="empty-icon">${ICON.chart}</div>
           <h2>Noch keine Daten</h2>
           <p class="muted">Sobald du dein erstes Workout speicherst, siehst du hier Trainings pro Woche, deine Kraftentwicklung, Muskelbalance und Rekorde.</p>
-        </div>${bodyCard()}</main>${tabBar('progress')}`;
+        </div>${recordsCard(records(8))}${bodyCard()}</main>${tabBar('progress')}`;
     }
 
     const o = overview(range);
     const weeks = weekly(range);
     const str = strength(range);
     const tally = muscleSets(range);
-    const recs = records(5);
+    const recs = records(8);
     const ds = computeStreak();
 
     // 1. Kennzahlen
@@ -95,7 +96,8 @@ export const progressScreen = {
         <span class="chev">${ICON.chev}</span></button>`;
     }).join('');
     const strengthCard = `<section class="card list-card">
-      <div class="card-head"><h2>Kraft</h2><span class="muted small">geschätztes Maximum (1 Wdh)</span></div>
+      <div class="card-head"><h2>Kraft</h2><button class="chip" data-action="addPr" aria-label="Rekord eintragen">${ICON.plus} Rekord</button></div>
+      <p class="muted small card-sub">geschätztes Maximum (1 Wdh)</p>
       ${strengthRows || '<p class="muted small pad">Noch keine Sätze mit Gewicht in diesem Zeitraum.</p>'}
     </section>`;
 
@@ -114,11 +116,7 @@ export const progressScreen = {
     </section>`;
 
     // 5. Rekorde
-    const recRows = recs.map((r) => `<div class="list-row static">
-      <span class="lr-main"><span class="lr-title">${esc(r.name)}</span><span class="lr-sub">${fmtDateLong(r.date)}</span></span>
-      <span class="lr-value">${fmtWU(r.w, exUnit(r.exId), false)} × ${fmtNum(r.r)}<small class="up"> +${fmtWU(r.gain, exUnit(r.exId))}</small></span></div>`).join('');
-    const recCard = `<section class="card list-card"><div class="card-head"><h2>Rekorde</h2><span class="muted small">neue Bestwerte</span></div>
-      ${recRows || '<p class="muted small pad">Noch keine Rekorde – die kommen beim zweiten Training einer Übung.</p>'}</section>`;
+    const recCard = recordsCard(recs);
 
     // "Gut zu wissen": eher zum Staunen als zum Steuern
     const f = funFacts();
@@ -155,6 +153,8 @@ export const progressScreen = {
   actions: {
     range: (el) => { ui.params.range = el.dataset.range; render(); },
     addBw: () => openBodySheet(),
+    addPr: () => openPrSheet(),
+    editPr: (el) => { const pr = data.prs.find((p) => p.id === el.dataset.id); if (pr) openPrSheet({ pr }); },
     weighRem: () => openWeighRem(),
     tip: (el) => {
       document.querySelectorAll('.chart .hit.sel').forEach((h) => h.classList.remove('sel'));
@@ -183,6 +183,10 @@ export const exstatScreen = {
     const name = ex?.name || rows[0]?.name || 'Übung';
     const valid = rows.filter((r) => r.value > 0);
     const best = valid.reduce((a, b) => (b.value > (a?.value || 0) ? b : a), null);
+    const man = bestManual(exId);
+    const bestTile = man && man.value > (best?.value || 0)
+      ? tile('Bestwert', fmtWU(Math.round(man.value * 2) / 2, exUnit(exId)), `${fmtSet(man, ' × ', exUnit(exId))} · eingetragen`)
+      : tile('Bestwert', best ? fmtWU(Math.round(best.value * 2) / 2, exUnit(exId)) : '–', best ? fmtSet(best.best, ' × ', exUnit(exId)) : '');
     const last = rows[rows.length - 1];
     const u = exUnit(exId);
     const fmtW = (kg) => fmtWU(kg, u);
@@ -208,12 +212,14 @@ export const exstatScreen = {
       </header>
       <main class="content">
         <div class="tiles three">
-          ${tile('Bestwert', best ? fmtW(best.value) : '–', best ? fmtSet(best.best, ' × ', u) : '')}
+          ${bestTile}
           ${tile('Zuletzt', last?.best ? fmtSet(last.best, ' × ', u) : '–', last ? shortDate(last.date) : '')}
           ${tile('Trainings', rows.length)}
         </div>
         <section class="card"><div class="card-head"><h2>Verlauf</h2><span class="muted small">geschätztes Maximum (1 Wdh)</span></div>${chart}</section>
-        <section class="card list-card"><div class="card-head"><h2>Alle Trainings</h2><span class="muted small">${u} × Wdh</span></div>${hist}</section>
+        <section class="card list-card"><div class="card-head"><h2>Eingetragene Rekorde</h2><button class="chip" data-action="addPr">${ICON.plus} Eintragen</button></div>
+          ${prRows(exId) || '<p class="muted small pad">Bestwerte von außerhalb der App, z. B. von früher oder einem Maximaltest.</p>'}</section>
+        ${rows.length ? `<section class="card list-card"><div class="card-head"><h2>Alle Trainings</h2><span class="muted small">${u} × Wdh</span></div>${hist}</section>` : ''}
       </main>`;
   },
 
@@ -225,6 +231,8 @@ export const exstatScreen = {
   actions: {
     back: () => go('progress', { range: ui.params.range, more: ui.params.more }),
     session: (el) => go('session', { id: el.dataset.id, back: { screen: 'exstat', params: { ...ui.params } } }),
+    addPr: () => openPrSheet({ exId: ui.params.exId }),
+    editPr: (el) => { const pr = data.prs.find((p) => p.id === el.dataset.id); if (pr) openPrSheet({ pr }); },
   },
 };
 
@@ -295,6 +303,20 @@ function openWeighRem() {
     },
     inputs: { wrTime: (el) => { st.time = el.value; } },
   });
+}
+
+/** Rekorde: neue Bestwerte aus Workouts + selbst eingetragene (antippen = ändern). */
+function recordsCard(recs) {
+  const rows = recs.map((r) => {
+    const u = exUnit(r.exId);
+    const val = `${fmtWU(r.w, u, false)} × ${fmtNum(r.r)}${r.gain ? `<small class="up"> +${fmtWU(r.gain, u)}</small>` : ''}`;
+    const main = `<span class="lr-main"><span class="lr-title">${esc(r.name)}</span><span class="lr-sub">${fmtDateLong(r.date)}${r.manual ? ' · eingetragen' : ''}</span></span>`;
+    return r.manual
+      ? `<button class="list-row" data-action="editPr" data-id="${esc(r.id)}">${main}<span class="lr-value">${val}</span><span class="chev">${ICON.chev}</span></button>`
+      : `<div class="list-row static">${main}<span class="lr-value">${val}</span></div>`;
+  }).join('');
+  return `<section class="card list-card rec-card"><div class="card-head"><h2>Rekorde</h2><button class="chip" data-action="addPr" aria-label="Rekord eintragen">${ICON.plus} Eintragen</button></div>
+    ${rows || '<p class="muted small pad">Noch keine Rekorde. Trag deine Bestwerte ein – z. B. von vor der App – oder sie kommen automatisch beim zweiten Training einer Übung.</p>'}</section>`;
 }
 
 function bodyCard() {
