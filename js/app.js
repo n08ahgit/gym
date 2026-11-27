@@ -142,6 +142,7 @@ export function go(screen, params = {}) {
 export function render() {
   const s = screens[ui.screen];
   appEl.innerHTML = s.render(ui.params);
+  requestAnimationFrame(syncScrolled);
   appEl.dataset.screen = ui.screen;
   s.after?.(appEl, ui.params);
   syncWakeLock();
@@ -526,6 +527,10 @@ document.addEventListener('focusout', () => {
 window.visualViewport?.addEventListener('resize', syncViewport);
 window.visualViewport?.addEventListener('scroll', syncViewport);
 syncViewport();
+
+// ---------- Oberer Rand: Verlauf nur, wenn gescrollt ----------
+const syncScrolled = () => document.documentElement.classList.toggle('scrolled', window.scrollY > 4);
+window.addEventListener('scroll', syncScrolled, { passive: true });
 
 // ---------- Timer-Takt ----------
 // Zeiten werden immer aus Zeitstempeln berechnet; der Takt aktualisiert

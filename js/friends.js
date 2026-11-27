@@ -61,7 +61,7 @@ export function myStats(today = new Date()) {
   // Essen: Ø kcal und Protein pro Tag der letzten 7 Tage – nur Tage, an denen etwas eingetragen wurde
   const food = lastDays(7, today);
   const fk = food.avg ? food.avg.kcal : null, fp = food.avg ? food.avg.p : null;
-  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4, fk, fp, fd: food.count, ...presence(today) };
+  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4, fk, fp, fd: food.count, ...presence(today), ...(data.profile.avatar && data.profile.avV ? { av: data.profile.avV } : {}) };
 }
 
 /**
@@ -230,6 +230,38 @@ async function upgradeOldFriends() {
   return changed;
 }
 
+/** Eigenes Profilbild setzen (data-URL, klein) oder entfernen (null). */
+export async function setAvatar(img) {
+  data.profile.avatar = img || null;
+  data.profile.avV = img ? Date.now() : null;
+  save();
+  if (!API || !data.profile.code || !data.profile.key) return true;
+  try {
+    const r = await fetch(`${API}/friend/avatar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: data.profile.code, key: data.profile.key, img: img || null }) });
+    const d = await r.json().catch(() => ({}));
+    if (d.v) { data.profile.avV = d.v; save(); }
+    await publishMe(true);
+    return r.ok;
+  } catch { return false; }
+}
+
+/** Profilbilder der Freunde nachladen, wenn sich ihre Version geändert hat. */
+async function syncAvatars() {
+  let changed = false;
+  await Promise.all(data.friends.filter((f) => f.code).map(async (f) => {
+    const v = f.stats?.av || null;
+    if (!v) { if (f.img) { delete f.img; delete f.av; changed = true; } return; }
+    if (f.av === v && f.img) return;
+    try {
+      const r = await fetch(`${API}/friend/${f.code}/avatar`);
+      if (!r.ok) return;
+      const a = await r.json();
+      if (a?.img) { f.img = a.img; f.av = v; changed = true; }
+    } catch { /* offline */ }
+  }));
+  return changed;
+}
+
 export async function refreshFriends() {
   let changed = await upgradeOldFriends();
   changed = (await syncInbox()).length > 0 || changed;
@@ -239,6 +271,7 @@ export async function refreshFriends() {
       if (n.t !== f.t || n.name !== f.name) { Object.assign(f, n); changed = true; }
     } catch { /* offline oder gelöscht: alten Stand behalten */ }
   }));
+  if (await syncAvatars()) changed = true;
   if (changed) save();
   return changed;
 }

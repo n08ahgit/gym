@@ -14,16 +14,22 @@ import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 import { NEWS, unseen, markSeen } from '../news.js';
 
-/** Neuheiten: eine Zeile pro Funktion – was sie macht und wo man sie findet. */
+/** Neuheiten: eine Zeile pro Funktion, neueste oben, auf-/zuklappbar (Zustand pro Gerät). */
+const NEWS_OPEN = 'gym.newsOpen';
+function newsOpen(hasFresh) {
+  try { const v = localStorage.getItem(NEWS_OPEN); return v == null ? true : v === '1' || hasFresh; } catch { return true; }
+}
 function newsCard() {
   const fresh = new Set(unseen().map((n) => n.id));
-  const rows = NEWS.map((n) => `<li class="news-row${fresh.has(n.id) ? ' fresh' : ''}">
+  const open = newsOpen(fresh.size > 0);
+  const rows = NEWS.slice().reverse().map((n) => `<li class="news-row${fresh.has(n.id) ? ' fresh' : ''}">
       <span class="news-title">${fresh.has(n.id) ? '<i class="news-new">Neu</i>' : ''}${esc(n.title)}</span>
       <span class="news-text">${esc(n.text)}</span>
       <span class="news-where">${ICON.chev}${esc(n.where)}</span></li>`).join('');
-  return `<section class="card news-card" id="news">
-    <div class="card-head"><h2>Neuheiten</h2>${fresh.size ? `<span class="news-count">${fresh.size} neu</span>` : ''}</div>
-    <ul class="news-list">${rows}</ul>
+  return `<section class="card news-card${open ? ' open' : ''}" id="news">
+    <button class="news-toggle" data-action="newsToggle" aria-expanded="${open}" aria-controls="newsList">
+      <h2>Neuheiten</h2>${fresh.size ? `<span class="news-count">${fresh.size} neu</span>` : `<span class="muted small">${NEWS.length}</span>`}<span class="news-chev">${ICON.chevDown}</span></button>
+    <div class="news-body" id="newsList"><ul class="news-list">${rows}</ul></div>
   </section>`;
 }
 
@@ -74,6 +80,13 @@ export const settingsScreen = {
 
     export: async () => { if (await exportFile()) render(); },
 
+    newsToggle: (el) => {
+      const card = el.closest('.news-card');
+      const open = !card.classList.contains('open');
+      card.classList.toggle('open', open);
+      el.setAttribute('aria-expanded', open);
+      try { localStorage.setItem(NEWS_OPEN, open ? '1' : '0'); } catch { /* egal */ }
+    },
     openPush: () => openPushSheet(),
     openBackup: () => openBackupSheet(),
     openCustom: () => openCustomSheet(),

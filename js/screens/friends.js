@@ -7,7 +7,7 @@
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
-import { isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
+import { setAvatar, isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
 import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100, nutrOf, setDrinkNutr } from '../drinks.js';
 import { scanCode, canScan } from '../scanner.js';
 import { parseNum, fmtClock } from '../util.js';
@@ -77,12 +77,28 @@ function status(st, long = false) {
 }
 const fmtDur = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim());
 
-/** Initialen-Kreis, Farbe aus dem Namen (immer gleich pro Person). */
-function avatar(name, live, size = 52) {
+/** Profilbild oder Initialen-Kreis (Farbe aus dem Namen, immer gleich pro Person). Inhalt immer exakt mittig. */
+function avatar(name, live, size = 52, img = null) {
   const n = String(name || '?').trim();
   const ini = n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
   let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return `<span class="ava${live ? ' live' : ''}" style="--ava-h:${h};--ava-s:${size}px" aria-hidden="true">${esc(ini)}</span>`;
+  const safe = img && /^data:image\/(jpeg|webp|png);base64,/.test(img) ? img : null;
+  return `<span class="ava${live ? ' live' : ''}${safe ? ' has-img' : ''}" style="--ava-h:${h};--ava-s:${size}px" aria-hidden="true">${safe ? `<img src="${safe}" alt="">` : `<span class="ava-ini">${esc(ini)}</span>`}</span>`;
+}
+const meAvatar = (size) => avatar(data.profile.name || 'Du', false, size, data.profile.avatar);
+
+/** Foto → quadratisch zugeschnitten, 160 px, JPEG (ca. 8–15 KB). */
+async function shrinkPhoto(file) {
+  const src = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Bild konnte nicht gelesen werden')); i.src = src; });
+  const S = 160, side = Math.min(img.naturalWidth, img.naturalHeight);
+  const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, S, S);
+  let q = 0.82, out = cv.toDataURL('image/jpeg', q);
+  while (out.length > 40000 && q > 0.4) { q -= 0.12; out = cv.toDataURL('image/jpeg', q); }
+  return out;
 }
 
 /** Leiste oben: wer ist im Gym, wer war zuletzt da. Live zuerst, dann nach letztem Training. */
@@ -92,7 +108,7 @@ function presenceStrip() {
   return `<section class="presence" aria-label="Wer trainiert">
     <div class="presence-head"><h2>${liveN ? `<i class="live-dot"></i>${liveN} im Gym` : 'Freunde'}</h2><button class="text-btn" data-action="invite">${ICON.plus} Hinzufügen</button></div>
     <div class="presence-row">${people.map((f) => `<button class="pr-item" data-action="friend" data-id="${esc(f.id)}" aria-label="${esc(f.name)}: ${status(f.stats, true)}">
-      ${avatar(f.name, isLive(f.stats))}<span class="pr-name">${esc(f.name)}</span><span class="pr-st${isLive(f.stats) ? ' on' : ''}">${status(f.stats)}</span></button>`).join('')}</div>
+      ${avatar(f.name, isLive(f.stats), 52, f.img)}<span class="pr-name">${esc(f.name)}</span><span class="pr-st${isLive(f.stats) ? ' on' : ''}">${status(f.stats)}</span></button>`).join('')}</div>
   </section>`;
 }
 
@@ -106,6 +122,7 @@ export const friendsScreen = {
     const list = rows.map((r, i) => `
       <button class="list-row rank-row${r.me ? ' me' : ''}" data-action="${r.me ? 'noop' : 'friend'}" data-id="${esc(r.id)}">
         <span class="rank${i < 3 && r.value != null ? ` r${i + 1}` : ''}">${r.value == null ? '–' : i + 1}</span>
+        ${r.me ? meAvatar(34) : avatar(r.name, false, 34, r.img)}
         <span class="lr-main"><span class="lr-title">${esc(r.name)}${r.me ? ' <span class="you">Du</span>' : ''}${!r.me && isLive(r.stats) ? ' <i class="live-dot" aria-label="trainiert gerade"></i>' : ''}</span>
           <span class="lr-sub">${detail(key, r.stats) || (r.me ? 'aktueller Stand' : `Stand ${ago(r.t)}`)}</span></span>
         <span class="lr-value">${fmtValue(key, r.value)}${key !== 'volume' && key !== 'strength' && r.value != null ? `<small> ${BOARDS[key].unit}</small>` : ''}</span>
@@ -149,6 +166,19 @@ export const friendsScreen = {
   },
 
   inputs: {
+    avatarFile: async (el) => {
+      const file = el.files?.[0];
+      if (!file) return;
+      if (!data.profile.name) { toast('Bitte zuerst deinen Namen eingeben'); return; }
+      try {
+        const img = await shrinkPhoto(file);
+        await setAvatar(img);
+        toast('Profilbild gespeichert – Freunde sehen es gleich');
+        const inSheet = !document.getElementById('sheet').hidden;
+        render();
+        if (inSheet) openInviteSheet();
+      } catch (e) { toast(e.message || 'Bild konnte nicht verwendet werden'); }
+    },
     pname: (el) => {
       const had = !!data.profile.name;
       data.profile.name = el.value.trim().slice(0, 24);
@@ -160,6 +190,7 @@ export const friendsScreen = {
 
   actions: {
     noop: () => {},
+    avatarDel: async () => { const inSheet = !document.getElementById('sheet').hidden; await setAvatar(null); toast('Profilbild entfernt'); render(); if (inSheet) openInviteSheet(); },
     toggleTimes: (el) => {
       data.settings.shareTimes = !shareTimes();
       save();
@@ -200,7 +231,14 @@ export const friendsScreen = {
 
 /** Einladen (Name, Code, teilen, Code eingeben, Privatsphäre) – als Karte ohne Freunde, sonst als Fenster. */
 function inviteBody() {
-  return `<label class="label first" for="pname">Dein Name in der Rangliste</label>
+  return `<div class="me-profile">
+      <span id="meAva">${meAvatar(72)}</span>
+      <span class="me-pic-btns">
+        <label class="chip">${ICON.edit} ${data.profile.avatar ? 'Foto ändern' : 'Profilbild wählen'}<input type="file" accept="image/*" hidden data-input="avatarFile"></label>
+        ${data.profile.avatar ? '<button class="text-btn muted" data-action="avatarDel">Entfernen</button>' : ''}
+      </span>
+    </div>
+    <label class="label" for="pname">Dein Name in der Rangliste</label>
     <input id="pname" class="input" data-input="pname" value="${esc(data.profile.name)}" placeholder="z. B. Alex" maxlength="24" autocomplete="off">
     ${data.profile.name ? `<button class="my-code" data-action="copyCode" aria-label="Code kopieren"><span class="my-code-val">${shortCode()}</span><span class="muted small">Dein Code · antippen zum Kopieren</span></button>` : ''}
     <button class="btn primary big full" data-action="share">${ICON.share} Einladung per WhatsApp & Co.</button>
@@ -263,15 +301,15 @@ function openFriend(id) {
   };
   const kg = (v) => (v ? fmtW(v) : '–');
   const st = f.stats || {};
-  const tw = Array.isArray(st.tw) ? st.tw : null;
+  const tw = Array.isArray(st.tw) && st.tw.some((x) => x[0]) ? st.tw : null;
   const maxN = tw ? Math.max(1, ...tw.map((x) => x[0])) : 1;
   const top = tw ? tw.map((x, i) => [i, ...x]).filter((x) => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
   const usual = top.length ? `Meist ${top.map(([i, , h]) => `${WD1[i]}${h != null ? ` ${hourTxt(h)}` : ''}`).join(' · ')}` : '';
   openSheet(`<h2 class="sheet-title">${esc(f.name)}</h2>
-    <div class="fr-status${isLive(st) ? ' on' : ''}">${avatar(f.name, isLive(st), 44)}<span><b>${status(st, true)}</b><span class="muted small">Stand ${ago(f.t)}</span></span></div>
+    <div class="fr-status${isLive(st) ? ' on' : ''}">${avatar(f.name, isLive(st), 52, f.img)}<span class="fr-text"><b>${status(st, true)}</b><span class="muted small">Stand ${ago(f.t)}</span></span></div>
     ${tw ? `<h3 class="sheet-h">Trainiert meist · letzte 8 Wochen</h3>
       <div class="tw-chart" role="img" aria-label="${esc(usual || 'Keine Trainings')}">${tw.map(([n, h], i) => `<div class="tw-col"><span class="tw-bar" style="--k:${n / maxN}"></span><span class="tw-d">${WD1[i]}</span><span class="tw-h">${n ? hourTxt(h).replace(' Uhr', '') : ''}</span></div>`).join('')}</div>
-      ${usual ? `<p class="muted small">${usual}</p>` : ''}` : '<p class="muted small">Trainingszeiten sieht man, sobald ' + esc(f.name) + ' die neue Version nutzt und sie freigegeben hat.</p>'}
+      ${usual ? `<p class="muted small">${usual}</p>` : ''}` : (Array.isArray(st.tw) ? `<p class="muted small">${esc(f.name)} hat in den letzten 8 Wochen noch nicht trainiert.</p>` : '<p class="muted small">Trainingszeiten sieht man, sobald ' + esc(f.name) + ' die neue Version nutzt und sie freigegeben hat.</p>')}
     <h3 class="sheet-h">Vergleich</h3>
     <ul class="cmp-list">
       <li class="cmp head"><span class="cmp-l"></span><b>Du</b><b>${esc(f.name)}</b></li>

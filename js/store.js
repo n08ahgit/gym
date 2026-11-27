@@ -19,7 +19,7 @@
 //                      sets: [ { w: 80, r: 8, status: "done" | "skipped" } ] } ] }
 //   ],
 //   body: [ { date: "2026-11-24", kg: 75.2 } ],       // Körpergewicht, 1 Wert pro Tag
-//   profile: { id, name, code: "K7Q2MX", key },      // Code = kurzer Freundes-Code, key = geheim
+//   profile: { id, name, code: "K7Q2MX", key, avatar?: data-URL, avV? },      // Code = kurzer Freundes-Code, key = geheim
 //   friends: [ { id, name, t: ms, stats: {…} } ],     // zuletzt erhaltener Stand
 //   drinks: [ { id, t, date, key, name, ml, mg } ],  // Energy-Drinks / Koffein
 //   food: [ { id, t, date, name, g, kcal, p, c, f, ref } ], // Kalorien-Tracker
@@ -79,6 +79,8 @@ export function normalize(d) {
   if (d.profile && typeof d.profile.id === 'string') {
     out.profile = { id: d.profile.id, name: String(d.profile.name || '').slice(0, 24) };
     if (/^[A-Z2-9]{6}$/.test(d.profile.code || '') && typeof d.profile.key === 'string') { out.profile.code = d.profile.code; out.profile.key = d.profile.key; }
+    // Profilbild (klein, data-URL) + Version für Freunde
+    if (typeof d.profile.avatar === 'string' && /^data:image\/(jpeg|webp|png);base64,/.test(d.profile.avatar) && d.profile.avatar.length < 60000) { out.profile.avatar = d.profile.avatar; out.profile.avV = Number(d.profile.avV) || Date.now(); }
   }
   if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
   if (Array.isArray(d.food)) out.food = d.food.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.kcal >= 0 && x.kcal < 20000);
