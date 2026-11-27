@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v67';
+const CACHE = 'gym-v68';
 
 const FILES = [
   './',
@@ -129,7 +129,8 @@ self.addEventListener('push', (e) => {
     vibrate: [200, 100, 200], // Android (iPhone vibriert nach Systemeinstellung)
     timestamp: Date.now(),
     // Supplement: auf Android direkt abhaken (iPhone zeigt keine Knöpfe)
-    ...(d.supp ? { data: { supp: d.supp, server: d.server }, actions: [{ action: 'done', title: 'Erledigt ✓' }] } : {}),
+    // Wiegen: kein „Erledigt“-Knopf – abgehakt wird durchs Eintragen des Gewichts
+    ...(d.supp ? { data: { supp: d.supp, server: d.server }, ...(d.supp.id === 'weigh' ? {} : { actions: [{ action: 'done', title: 'Erledigt ✓' }] }) } : {}),
   }));
 });
 
@@ -147,8 +148,9 @@ self.addEventListener('notificationclick', (e) => {
   e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
     const c = list.find((w) => 'focus' in w);
     if (sd?.supp) {
-      if (c) { c.postMessage({ go: 'food' }); return c.focus(); }
-      return self.clients.openWindow('./?app&tab=food');
+      const weigh = sd.supp.id === 'weigh';
+      if (c) { c.postMessage(weigh ? { go: 'progress', bw: 1 } : { go: 'food' }); return c.focus(); }
+      return self.clients.openWindow(weigh ? './?app&tab=progress&bw=1' : './?app&tab=food');
     }
     return c ? c.focus() : self.clients.openWindow('./');
   }));

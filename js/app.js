@@ -625,18 +625,24 @@ import('./friends.js').then(async (f) => {
 
 // Supplement-Erinnerungen: Server aktuell halten, am Handy Abgehaktes übernehmen
 import('./supps.js').then((sp) => {
-  if (!sp.supps().length) return;
+  if (!sp.remindersOn()) return;
   sp.syncSupps();
   const pull = () => sp.pullSuppDone().then((ch) => { if (ch && ui.screen === 'food') render(); });
   pull();
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
 });
-// Mitteilung „Kreatin nehmen“ angetippt → Ernährung öffnen
-if (qs.get('tab') === 'food' && !hasActive()) {
-  startScreen = 'food';
+// Mitteilung angetippt: „Kreatin nehmen“ → Ernährung, „Zeit zum Wiegen“ → Fortschritt + Gewicht eintragen
+const openWeigh = () => import('./screens/progress.js').then((m) => setTimeout(() => m.openBodySheet(), 450));
+if (['food', 'progress'].includes(qs.get('tab')) && !hasActive()) {
+  startScreen = qs.get('tab');
+  if (qs.get('bw')) openWeigh();
   history.replaceState(null, '', location.pathname + '?app');
 }
-navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.go === 'food' && !hasActive()) go('food'); });
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (hasActive() || !['food', 'progress'].includes(e.data?.go)) return;
+  go(e.data.go);
+  if (e.data.bw) openWeigh();
+});
 
 // Läuft ein Workout, direkt dorthin (z. B. nach Schließen der App)
 go(startScreen);

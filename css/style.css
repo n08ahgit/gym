@@ -1083,3 +1083,10 @@ html.kb-open .sheet-panel { padding-bottom: 16px; }
 .weight-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 8px 0 0; font-size: 0.82rem; color: var(--muted); text-align: center; }
 .weight-note svg { flex: none; width: 15px; height: 15px; color: var(--accent); }
 .weight-note b { color: var(--text); }
+
+/* Körpergewicht: Glocke für die Erinnerung */
+.bw-head-btns { display: inline-flex; gap: 6px; align-items: center; }
+.bell-chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 12px; font-variant-numeric: tabular-nums; }
+.bell-chip svg { width: 16px; height: 16px; }
+.bell-chip.on-rem { color: var(--accent); }
+.bw-rem-row { margin-top: 10px; }

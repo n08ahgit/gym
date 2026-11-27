@@ -15,7 +15,7 @@ import { status as pushStatus, enable as enablePush } from '../push.js';
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 /** Hinweis, falls keine Mitteilungen ankommen können. */
-function pushNote() {
+export function pushNote() {
   const st = pushStatus();
   if (st === 'on' || st === 'not-configured') return '';
   const text = {

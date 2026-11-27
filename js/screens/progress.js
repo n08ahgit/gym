@@ -21,6 +21,8 @@ import { bodyHeat } from '../bodyimage.js';
 import { tabBar } from './tabbar.js';
 import { computeStreak } from '../streak.js';
 import { ICON } from './icons.js';
+import { weighRem, setWeighRem, markWeighed } from '../supps.js';
+import { pushNote } from './suppui.js';
 
 const kgOrT = (kg) => fmtVol(kg);
 const shortDate = (ds) => { const d = parseDate(ds); return `${d.getDate()}.${d.getMonth() + 1}.`; };
@@ -153,6 +155,7 @@ export const progressScreen = {
   actions: {
     range: (el) => { ui.params.range = el.dataset.range; render(); },
     addBw: () => openBodySheet(),
+    weighRem: () => openWeighRem(),
     tip: (el) => {
       document.querySelectorAll('.chart .hit.sel').forEach((h) => h.classList.remove('sel'));
       el.classList.add('sel');
@@ -249,9 +252,57 @@ function wireLine(svg) {
 
 // ---------- Körpergewicht ----------
 
+const WD2 = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const remText = (r) => (r.rep?.type === 'days' ? (r.rep.days.length === 7 ? 'Täglich' : r.rep.days.slice().sort().map((d) => WD2[d]).join(', ')) : 'Täglich');
+
+/** Erinnerung zum Wiegen: Uhrzeit, Tage, stündlich nachfragen. */
+function openWeighRem() {
+  const cur = weighRem();
+  const st = { on: cur?.on ?? true, time: cur?.time || '07:30', days: cur?.rep?.type === 'days' ? [...cur.rep.days] : [0, 1, 2, 3, 4, 5, 6], nag: !!cur?.nag };
+  const chips = () => WD2.map((d, i) => `<button class="chip sec${st.days.includes(i) ? ' on' : ''}" data-action="wd" data-i="${i}" aria-pressed="${st.days.includes(i)}">${d}</button>`).join('');
+  openSheet(`<h2 class="sheet-title">Erinnerung zum Wiegen</h2>
+    <p class="muted small sheet-sub">Am genauesten: morgens nach dem Klo, vor Essen und Trinken, gleiche Kleidung. Die App rechnet mit dem 7-Tage-Schnitt – je öfter du dich wiegst, desto weniger stören Schwankungen durch Wasser und Salz.</p>
+    <div class="supp-form">
+      <label class="gfield"><span>Uhrzeit</span><input id="wrTime" type="time" value="${st.time}" data-input="wrTime"></label>
+      <h3 class="sheet-h">An diesen Tagen</h3>
+      <div class="wd-chips" id="wrDays">${chips()}</div>
+      <button class="switch-row" data-action="nag" role="switch" aria-checked="${st.nag}">
+        <span><b>Stündlich nachfragen</b><span class="muted small">Bis du dein Gewicht eingetragen hast (höchstens bis Mitternacht).</span></span>
+        <i class="switch${st.nag ? ' on' : ''}"></i>
+      </button>
+    </div>
+    ${pushNote()}
+    <div class="sheet-actions">
+      <button class="btn primary big" data-action="save">${cur?.on ? 'Speichern' : 'Erinnerung einschalten'}</button>
+      ${cur?.on ? '<button class="btn ghost big danger" data-action="off">Erinnerung ausschalten</button>' : ''}
+    </div>`, {
+    wd: (el) => { const i = +el.dataset.i; st.days = st.days.includes(i) ? st.days.filter((d) => d !== i) : [...st.days, i].sort(); document.getElementById('wrDays').innerHTML = chips(); },
+    nag: (el) => { st.nag = !st.nag; el.setAttribute('aria-checked', st.nag); el.querySelector('.switch').classList.toggle('on', st.nag); },
+    save: () => {
+      if (!/^\d{2}:\d{2}$/.test(st.time)) return toast('Uhrzeit wählen');
+      if (!st.days.length) return toast('Mindestens einen Tag wählen');
+      setWeighRem({ on: true, time: st.time, rep: st.days.length === 7 ? { type: 'daily' } : { type: 'days', days: st.days }, nag: st.nag });
+      // heute schon gewogen? → für heute nicht mehr erinnern
+      if (data.body.some((b) => b.date === dateStr())) markWeighed();
+      closeSheet(); render();
+      toast(`Erinnerung zum Wiegen: ${remText(weighRem())}, ${st.time} Uhr`);
+    },
+    off: () => { setWeighRem({ ...weighRem(), on: false }); closeSheet(); render(); toast('Erinnerung aus'); },
+    suppPush: async () => {
+      const { enable } = await import('../push.js');
+      try { await enable(); toast('Mitteilungen an'); if (weighRem()?.on) setWeighRem(weighRem()); } catch (e) { toast(e.message); }
+      openWeighRem();
+    },
+    inputs: { wrTime: (el) => { st.time = el.value; } },
+  });
+}
+
 function bodyCard() {
   const tr = bodyTrend();
-  const head = `<div class="card-head"><h2>Körpergewicht</h2><button class="chip" data-action="addBw">${ICON.plus} Eintragen</button></div>`;
+  const rem = weighRem();
+  const head = `<div class="card-head"><h2>Körpergewicht</h2><span class="bw-head-btns">
+    <button class="chip bell-chip${rem?.on ? ' on-rem' : ''}" data-action="weighRem" aria-label="Erinnerung zum Wiegen${rem?.on ? ` um ${rem.time} Uhr` : ' einrichten'}">${ICON.bell}${rem?.on ? ` ${rem.time}` : ''}</button>
+    <button class="chip" data-action="addBw">${ICON.plus} Eintragen</button></span></div>`;
   if (!tr) {
     return `<section class="card body-card">${head}
       <p class="muted small">Wiege dich morgens nach dem Aufstehen, 3–7× pro Woche. Entscheidend ist der Wochenschnitt, nicht der einzelne Wert – er zeigt, ob du im richtigen Tempo für Muskelaufbau zunimmst.</p></section>`;
@@ -275,7 +326,7 @@ function bodyCard() {
     <p class="verdict ${tr.tone}">${esc(tr.verdict)}</p></section>`;
 }
 
-function openBodySheet() {
+export function openBodySheet() {
   const today = dateStr();
   const cur = data.body.find((b) => b.date === today);
   const last = data.body[data.body.length - 1];
@@ -285,12 +336,16 @@ function openBodySheet() {
     <div class="sheet-actions">
       <button class="btn primary big" data-action="saveBw">Speichern</button>
       ${cur ? '<button class="btn ghost big danger" data-action="delBw">Heutigen Wert löschen</button>' : ''}
-    </div>`, {
+    </div>
+    <button class="list-row set-row bw-rem-row" data-action="rem"><span class="set-ic">${ICON.bell}</span>
+      <span class="lr-main"><span class="lr-title">Erinnerung zum Wiegen</span><span class="lr-sub">${weighRem()?.on ? `${remText(weighRem())} · ${weighRem().time} Uhr` : 'Aus'}</span></span><span class="chev">${ICON.chev}</span></button>`, {
+    rem: () => openWeighRem(),
     saveBw: () => {
       const el = document.getElementById('bwIn');
       const v = fromW(parseNum(el.value || el.placeholder));
       if (!v || Number.isNaN(v) || v < 30 || v > 300) return toast(wu() === 'lb' ? 'Bitte ein Gewicht zwischen 66 und 660 lb eingeben' : 'Bitte ein Gewicht zwischen 30 und 300 kg eingeben');
       setBodyWeight(today, Math.round(v * 100) / 100);
+      markWeighed(today); // Erinnerung für heute erledigt
       closeSheet();
       render();
     },

@@ -13,6 +13,7 @@ export const NEWS = [
   { id: 'feedback', title: 'Verbesserungsvorschläge', text: 'Schreib, was fehlt oder besser werden soll – jeder Vorschlag wird gelesen.', where: 'Einstellungen → „Verbesserungsvorschlag“' },
   { id: 'supps', title: 'Supplement-Erinnerung', text: 'Uhrzeit, Wiederholung und Hinweis wählen, auf Wunsch stündlich bis zum Abhaken. Mit Tipps über das i.', where: 'Ernährung → „Supplements“' },
   { id: 'barcode', title: 'Barcode-Scanner & eigene Zutaten', text: 'Packung scannen oder Zutat selbst anlegen – bleibt in deiner Liste. Bitte möglichst scannen: Gescanntes können danach alle Nutzer finden.', where: 'Ernährung → „Essen eintragen“' },
+  { id: 'wiegen', title: 'Erinnerung zum Wiegen', text: 'Uhrzeit und Tage wählen – abgehakt wird automatisch, sobald du dein Gewicht einträgst.', where: 'Fortschritt → Körpergewicht → Glocke' },
 ];
 
 const KEY = 'gym.newsSeen';

@@ -185,6 +185,22 @@ export function toggleDone(id, ds = dateStr()) {
   return done;
 }
 
+// ---------- Erinnerung zum Wiegen ----------
+// Läuft über dieselbe Server-Logik wie die Supplements (Eintrag "weigh").
+// Abgehakt wird automatisch, sobald das Gewicht des Tages eingetragen ist.
+
+export const weighRem = () => data.settings.weighRem || null;
+export function setWeighRem(cfg) {
+  data.settings.weighRem = cfg;
+  save();
+  syncSupps();
+}
+/** Gewicht für diesen Tag eingetragen → Erinnerung erledigt (keine Nachfragen mehr). */
+export function markWeighed(ds = dateStr()) {
+  if (weighRem()?.on && !isDone('weigh', ds)) toggleDone('weigh', ds);
+}
+export const remindersOn = () => supps().length > 0 || !!weighRem()?.on;
+
 // ---------- Server ----------
 
 function pushSub() {
@@ -206,7 +222,10 @@ export function syncSupps() {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin';
   return postServer('/supp/set', {
     tz,
-    items: supps().map(({ id, name, dose, time, rep, hint, nag }) => ({ id, name, dose, time, rep, hint, nag: !!nag })),
+    items: [
+      ...supps().map(({ id, name, dose, time, rep, hint, nag }) => ({ id, name, dose, time, rep, hint, nag: !!nag })),
+      ...(weighRem()?.on ? [{ id: 'weigh', kind: 'weigh', name: 'Wiegen', dose: '', hint: 'morgens nach dem Klo, vor dem Frühstück', time: weighRem().time, rep: weighRem().rep, nag: !!weighRem().nag }] : []),
+    ],
     done: { [today]: data.suppDone?.[today] || [] },
   });
 }
