@@ -649,6 +649,21 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
   if (e.data.bw) openWeigh();
 });
 
+// Push-Abo bei jedem Öffnen prüfen; neue Adresse → überall neu melden (Supplements, Wiegen, Anfeuern)
+let lastSubCheck = 0;
+const checkSub = async (force = false) => {
+  if (!force && Date.now() - lastSubCheck < 60000) return;
+  lastSubCheck = Date.now();
+  const { ensureSubscription } = await import('./push.js');
+  const r = await ensureSubscription();
+  if (!r) return;
+  const [sp, fr] = await Promise.all([import('./supps.js'), import('./friends.js')]);
+  if (r.changed || sp.remindersOn()) sp.syncSupps();
+  fr.registerPushSub();
+};
+setTimeout(() => checkSub(true), 2500);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkSub(); });
+
 // Anfeuern: per Push (Nachricht vom Service Worker) oder beim Öffnen abholen
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.cheer) import('./cheer.js').then((c) => c.showCheer(e.data.cheer)); });
 const pullCheers = () => import('./friends.js').then((f) => f.fetchCheers()).then((list) => { if (list.length) import('./cheer.js').then((c) => list.forEach(c.showCheer)); }).catch(() => {});

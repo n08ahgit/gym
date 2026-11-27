@@ -87,6 +87,28 @@ export async function cancelRestPush() {
   try { await post('/cancel', { endpoint: s.sub.endpoint }); } catch { /* offline: Mitteilung kommt dann eben */ }
 }
 
+/**
+ * Abo prüfen und bei Bedarf erneuern. iPhone/Android tauschen die Push-Adresse gelegentlich aus
+ * (oder lassen sie verfallen) – dann gingen alle Mitteilungen ins Leere. Läuft bei jedem Öffnen.
+ * Rückgabe: { changed, sub } oder null (Mitteilungen aus / nicht möglich).
+ */
+export async function ensureSubscription() {
+  const s = stored();
+  if (!s?.sub || !configured() || !supported() || Notification.permission !== 'granted') return null;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(VAPID_PUBLIC) });
+    const j = sub.toJSON();
+    const changed = j.endpoint !== s.sub.endpoint || j.keys?.auth !== s.sub.keys?.auth;
+    if (changed) localStorage.setItem(KEY, JSON.stringify({ sub: j }));
+    return { changed, sub: j };
+  } catch (e) {
+    console.warn('Push-Abo konnte nicht geprüft werden', e);
+    return null;
+  }
+}
+
 /** Letzte Zustellung laut Server: { status, text, at } – zur Fehlersuche. */
 export async function lastDelivery() {
   const s = stored();

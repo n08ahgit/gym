@@ -200,12 +200,14 @@ function startRest(sec) {
   active.phase = 'rest';
   active.rest = { end: Date.now() + sec * 1000, total: sec };
   persist();
+  armRestPush();
 }
 
 function endRest() {
   active.phase = 'exercise';
   active.rest = null;
   persist();
+  disarmRestPush();
 }
 
 /** Werte für "Letztes Mal" eines bestimmten Satzes. */
@@ -229,19 +231,37 @@ function stats(a) {
 }
 
 // ---------- Mitteilung am Pausenende (App im Hintergrund) ----------
-// Geht die App während einer Pause in den Hintergrund, bestellt sie beim
-// Push-Server eine Mitteilung 10 s vor der Endzeit; kommt sie zurück, wird sie
-// abbestellt (dann piept die App selbst).
+// Zuverlässig auch, wenn iOS die App beim Verlassen sofort einfriert:
+//  - Die Mitteilung (10 s vor Pausenende) wird schon beim START der Pause beim
+//    Server bestellt – nicht erst beim Verlassen (da kam die Anfrage manchmal nicht mehr raus).
+//  - Bleibt die App offen, wird sie kurz vorher wieder abbestellt (dann piept die App selbst).
+//  - Beim Verlassen wird zur Sicherheit nochmal bestellt, beim Zurückkommen abbestellt.
 const PUSH_LEAD = 10000;
+let restGuard = null;
+function armRestPush() {
+  clearTimeout(restGuard);
+  const at = active?.phase === 'rest' ? active.rest.end - PUSH_LEAD : 0;
+  if (at - Date.now() <= 1500) return;
+  const it = active.items[active.cur.ex];
+  scheduleRestPush(at, 'Noch 10 Sekunden Pause', it ? `Gleich: ${it.name} · Satz ${active.cur.set + 1} von ${it.sets}` : 'Gleich geht\'s weiter');
+  // App bleibt offen → 2,5 s vor der Mitteilung abbestellen. Ist die App versteckt, läuft dieser Timer nicht (iOS friert ein).
+  if (document.visibilityState === 'visible') {
+    restGuard = setTimeout(() => { if (document.visibilityState === 'visible') cancelRestPush(); }, Math.max(0, at - Date.now() - 2500));
+  }
+}
+function disarmRestPush() {
+  clearTimeout(restGuard);
+  cancelRestPush();
+}
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    // 10 s vor Pausenende, damit noch Zeit zum Zurückgehen bleibt
-    const at = active?.phase === 'rest' ? active.rest.end - PUSH_LEAD : 0;
-    if (at - Date.now() > 3000) {
-      const it = active.items[active.cur.ex];
-      scheduleRestPush(at, 'Noch 10 Sekunden Pause', it ? `Gleich: ${it.name} · Satz ${active.cur.set + 1} von ${it.sets}` : 'Gleich geht\'s weiter');
-    }
-  } else cancelRestPush();
+  if (document.visibilityState === 'hidden') armRestPush();
+  else {
+    clearTimeout(restGuard);
+    // Noch lange Pause? → Bestellung bleibt (wird nur überschrieben) und kurz vorher abbestellt.
+    // Sonst gleich abbestellen. (Nie „abbestellen + neu bestellen“ direkt hintereinander – die Anfragen könnten sich überholen.)
+    if (active?.phase === 'rest' && active.rest.end - PUSH_LEAD - Date.now() > 15000) armRestPush();
+    else cancelRestPush();
+  }
 });
 
 // ---------- Takt (von app.js alle 250 ms aufgerufen) ----------
@@ -615,6 +635,7 @@ export const workoutScreen = {
       active.rest.end += 30000;
       active.rest.total += 30;
       persist();
+      armRestPush(); // Mitteilung auf die neue Endzeit verschieben
       workoutTick();
     },
 
