@@ -15,6 +15,7 @@ export const NEWS = [
   { id: 'barcode', title: 'Barcode-Scanner & eigene Zutaten', text: 'Packung scannen oder Zutat selbst anlegen – bleibt in deiner Liste. Bitte möglichst scannen: Gescanntes können danach alle Nutzer finden.', where: 'Ernährung → „Essen eintragen“' },
   { id: 'wiegen', title: 'Erinnerung zum Wiegen', text: 'Uhrzeit und Tage wählen – abgehakt wird automatisch, sobald du dein Gewicht einträgst.', where: 'Fortschritt → Körpergewicht → Glocke' },
   { id: 'drinkscan', title: 'Energy-Drinks scannen', text: 'Dose scannen – Name, Menge und Koffein werden übernommen und gemerkt.', where: 'Freunde → Energy-Drinks → „+ Drink“' },
+  { id: 'live', title: 'Sehen, wer gerade trainiert', text: 'Oben bei Freunde: wer im Gym ist, wann zuletzt – und an welchen Tagen und Uhrzeiten jemand meist trainiert (Freund antippen). Abschaltbar bei „Hinzufügen“.', where: 'Freunde' },
 ];
 
 const KEY = 'gym.newsSeen';

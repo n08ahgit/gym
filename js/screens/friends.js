@@ -7,7 +7,7 @@
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
-import { BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
+import { isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
 import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100, nutrOf, setDrinkNutr } from '../drinks.js';
 import { scanCode, canScan } from '../scanner.js';
 import { parseNum, fmtClock } from '../util.js';
@@ -60,46 +60,77 @@ function detail(key, st) {
   return '';
 }
 
+// ---------- Anwesenheit: trainiert gerade / zuletzt ----------
+
+const WD1 = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const hhmm = (t) => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+const mins = (t) => Math.max(1, Math.round((Date.now() - t) / 60000));
+const hourTxt = (h) => (h == null ? '' : `${Math.floor(h)}${h % 1 ? ':30' : ''} Uhr`);
+
+/** Kurzstatus: „Push · 25 min“ (live) bzw. „heute 17:30“, „gestern“, „vor 3 T.“ */
+function status(st, long = false) {
+  if (isLive(st)) return long ? `Trainiert gerade · ${esc(st.live.n)} · seit ${fmtDur(mins(st.live.s))}` : `${esc(st.live.n)} · ${fmtDur(mins(st.live.s))}`;
+  if (!st?.lt) return long ? 'Noch kein Training geteilt' : '–';
+  const d = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(st.lt).setHours(0, 0, 0, 0)) / 864e5);
+  const when = d <= 0 ? `heute ${hhmm(st.lt)}` : d === 1 ? `gestern ${long ? hhmm(st.lt) : ''}`.trim() : long ? `vor ${d} Tagen` : `vor ${d} T.`;
+  return long ? `Zuletzt: ${when}${st.ln ? ` · ${esc(st.ln)}` : ''}` : when;
+}
+const fmtDur = (m) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim());
+
+/** Initialen-Kreis, Farbe aus dem Namen (immer gleich pro Person). */
+function avatar(name, live, size = 52) {
+  const n = String(name || '?').trim();
+  const ini = n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+  let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `<span class="ava${live ? ' live' : ''}" style="--ava-h:${h};--ava-s:${size}px" aria-hidden="true">${esc(ini)}</span>`;
+}
+
+/** Leiste oben: wer ist im Gym, wer war zuletzt da. Live zuerst, dann nach letztem Training. */
+function presenceStrip() {
+  const people = data.friends.slice().sort((a, b) => (isLive(b.stats) - isLive(a.stats)) || ((b.stats?.live?.s || b.stats?.lt || 0) - (a.stats?.live?.s || a.stats?.lt || 0)));
+  const liveN = people.filter((f) => isLive(f.stats)).length;
+  return `<section class="presence" aria-label="Wer trainiert">
+    <div class="presence-head"><h2>${liveN ? `<i class="live-dot"></i>${liveN} im Gym` : 'Freunde'}</h2><button class="text-btn" data-action="invite">${ICON.plus} Hinzufügen</button></div>
+    <div class="presence-row">${people.map((f) => `<button class="pr-item" data-action="friend" data-id="${esc(f.id)}" aria-label="${esc(f.name)}: ${status(f.stats, true)}">
+      ${avatar(f.name, isLive(f.stats))}<span class="pr-name">${esc(f.name)}</span><span class="pr-st${isLive(f.stats) ? ' on' : ''}">${status(f.stats)}</span></button>`).join('')}</div>
+  </section>`;
+}
+
+const BOARD_GROUPS = [['Training', ['consistency', 'streak', 'volume', 'strength']], ['Disziplin', ['skips', 'sets']], ['Just for fun', ['caffeine', 'food']]];
+
 export const friendsScreen = {
   render(params) {
     const key = params.board || 'consistency';
     const rows = leaderboard(key);
-    const seg = `<div class="seg-wrap seg-boards" role="tablist" aria-label="Wertung">${Object.entries(BOARDS)
-      .map(([k, b]) => `<button class="seg-item${k === key ? ' on' : ''}" role="tab" aria-selected="${k === key}" data-action="board" data-k="${k}">${b.label}</button>`)
-      .join('')}</div>`;
-
+    const noFriends = !data.friends.length;
     const list = rows.map((r, i) => `
       <button class="list-row rank-row${r.me ? ' me' : ''}" data-action="${r.me ? 'noop' : 'friend'}" data-id="${esc(r.id)}">
-        <span class="rank">${r.value == null ? '–' : i + 1}</span>
-        <span class="lr-main"><span class="lr-title">${esc(r.name)}${r.me ? ' <span class="you">Du</span>' : ''}</span>
+        <span class="rank${i < 3 && r.value != null ? ` r${i + 1}` : ''}">${r.value == null ? '–' : i + 1}</span>
+        <span class="lr-main"><span class="lr-title">${esc(r.name)}${r.me ? ' <span class="you">Du</span>' : ''}${!r.me && isLive(r.stats) ? ' <i class="live-dot" aria-label="trainiert gerade"></i>' : ''}</span>
           <span class="lr-sub">${detail(key, r.stats) || (r.me ? 'aktueller Stand' : `Stand ${ago(r.t)}`)}</span></span>
         <span class="lr-value">${fmtValue(key, r.value)}${key !== 'volume' && key !== 'strength' && r.value != null ? `<small> ${BOARDS[key].unit}</small>` : ''}</span>
       </button>`).join('');
-
-    const noFriends = !data.friends.length;
+    const today = mgOf(todayDrinks());
+    const week = caffeineStats(7);
     return `<main class="content no-title has-tabbar friends">
-      <section class="card">
-        <div class="card-head"><h2>Rangliste</h2><span class="muted small">${BOARDS[key].sub}</span></div>
-        <div class="filter-row tight">${seg}</div>
+      ${noFriends ? inviteCard(true) : presenceStrip()}
+
+      <section class="card list-card board-card">
+        <div class="card-head"><h2>Rangliste</h2>
+          <button class="board-pick" data-action="boards" aria-haspopup="dialog">${BOARDS[key].label}${ICON.chevDown}</button></div>
+        <p class="muted small board-sub">${BOARDS[key].sub}</p>
         ${list}
-        ${noFriends ? '<p class="note">Noch keine Freunde. Schick deinen Code per WhatsApp – fügt ihr euch gegenseitig hinzu, seht ihr euch in der Rangliste. Die Zahlen aktualisieren sich danach von selbst.</p>'
-          : `<p class="note">${gapText(key, rows)}</p>`}
+        ${noFriends ? '' : `<p class="note">${gapText(key, rows)}</p>`}
       </section>
 
-      ${caffeineCard()}
-
-      <section class="card invite-card">
-        <div class="card-head"><h2>Freunde hinzufügen</h2></div>
-        <label class="label first" for="pname">Dein Name in der Rangliste</label>
-        <input id="pname" class="input" data-input="pname" value="${esc(data.profile.name)}" placeholder="z. B. Alex" maxlength="24" autocomplete="off">
-        ${data.profile.name ? `<button class="my-code" data-action="copyCode" aria-label="Code kopieren"><span class="my-code-val">${shortCode()}</span><span class="muted small">Dein Code · antippen zum Kopieren</span></button>` : ''}
-        <button class="btn primary big full" data-action="share">${ICON.share} Einladung per WhatsApp & Co.</button>
-        <label class="label" for="fcode">Code von einem Freund</label>
-        <div class="add-row">
-          <input id="fcode" class="input code-input" placeholder="z. B. K7Q2MX" maxlength="80" autocomplete="off" autocapitalize="characters" spellcheck="false" data-enter="addFriend">
-          <button class="btn" data-action="addFriend">Hinzufügen</button>
+      <section class="card list-card">
+        <div class="list-row caf-row-mini${today > DAILY_LIMIT ? ' over' : ''}">
+          <span class="set-ic">${ICON.bolt || ICON.plus}</span>
+          <span class="lr-main"><span class="lr-title">Energy-Drinks</span><span class="lr-sub"><span class="caf-big">${today}</span> mg heute · ${week.mg} mg in 7 Tagen${today > DAILY_LIMIT ? ' · über 400 mg' : ''}</span></span>
+          <button class="chip" data-action="drinks">${ICON.plus} Drink</button>
         </div>
-        <p class="note">Freunde sehen nur deinen Namen und Kennzahlen (Trainings, Streak, Volumen, Kraftwerte) – keine einzelnen Workouts.</p>
+        ${noFriends ? '' : `<button class="list-row set-row" data-action="invite"><span class="set-ic">${ICON.users}</span>
+          <span class="lr-main"><span class="lr-title">Freunde hinzufügen</span><span class="lr-sub">${data.profile.name ? `Dein Code ${shortCode()}` : 'Name eintragen und einladen'}</span></span><span class="chev">${ICON.chev}</span></button>`}
       </section>
     </main>${tabBar('friends')}`;
   },
@@ -107,7 +138,14 @@ export const friendsScreen = {
   after() {
     // Eigenen Stand hochladen, Freunde aktualisieren (still im Hintergrund)
     publishMe();
-    refreshFriends().then((changed) => { if (changed && ui.screen === 'friends' && !document.querySelector('#fcode:focus, #pname:focus')) render(); });
+    const quiet = () => ui.screen === 'friends' && document.getElementById('sheet').hidden && !document.querySelector('#fcode:focus, #pname:focus');
+    refreshFriends().then((changed) => { if (changed && quiet()) render(); });
+    // Live-Status aktuell halten: jede Minute neu holen (nur solange die Freunde-Seite offen ist)
+    clearInterval(liveTimer);
+    liveTimer = setInterval(() => {
+      if (ui.screen !== 'friends' || document.visibilityState !== 'visible') { if (ui.screen !== 'friends') clearInterval(liveTimer); return; }
+      refreshFriends().then((changed) => { if (quiet() && (changed || data.friends.some((f) => isLive(f.stats)))) render(); });
+    }, 60000);
   },
 
   inputs: {
@@ -122,6 +160,14 @@ export const friendsScreen = {
 
   actions: {
     noop: () => {},
+    toggleTimes: (el) => {
+      data.settings.shareTimes = !shareTimes();
+      save();
+      el.setAttribute('aria-checked', shareTimes());
+      el.querySelector('.switch').classList.toggle('on', shareTimes());
+      publishMe(true);
+      toast(shareTimes() ? 'Freunde sehen deine Trainingszeiten' : 'Trainingszeiten verborgen');
+    },
     board: (el) => { ui.params.board = el.dataset.k; render(); },
     share: async () => {
       if (!data.profile.name) {
@@ -147,10 +193,48 @@ export const friendsScreen = {
     },
     friend: (el) => openFriend(el.dataset.id),
     drinks: () => openDrinkSheet(),
+    invite: () => openInviteSheet(),
+    boards: () => openBoardSheet(),
   },
 };
 
-let nameTimer;
+/** Einladen (Name, Code, teilen, Code eingeben, Privatsphäre) – als Karte ohne Freunde, sonst als Fenster. */
+function inviteBody() {
+  return `<label class="label first" for="pname">Dein Name in der Rangliste</label>
+    <input id="pname" class="input" data-input="pname" value="${esc(data.profile.name)}" placeholder="z. B. Alex" maxlength="24" autocomplete="off">
+    ${data.profile.name ? `<button class="my-code" data-action="copyCode" aria-label="Code kopieren"><span class="my-code-val">${shortCode()}</span><span class="muted small">Dein Code · antippen zum Kopieren</span></button>` : ''}
+    <button class="btn primary big full" data-action="share">${ICON.share} Einladung per WhatsApp & Co.</button>
+    <label class="label" for="fcode">Code von einem Freund</label>
+    <div class="add-row">
+      <input id="fcode" class="input code-input" placeholder="z. B. K7Q2MX" maxlength="80" autocomplete="off" autocapitalize="characters" spellcheck="false" data-enter="addFriend">
+      <button class="btn" data-action="addFriend">Hinzufügen</button>
+    </div>
+    <button class="switch-row" data-action="toggleTimes" role="switch" aria-checked="${shareTimes()}">
+      <span><b>Trainingszeiten zeigen</b><span class="muted small">Freunde sehen, wenn du gerade trainierst, wann zuletzt und an welchen Tagen meist.</span></span>
+      <i class="switch${shareTimes() ? ' on' : ''}"></i></button>
+    <p class="note">Freunde sehen nur Namen, Kennzahlen${shareTimes() ? ' und Trainingszeiten' : ''} – keine einzelnen Workouts.</p>`;
+}
+function inviteCard() {
+  return `<section class="card invite-card"><div class="card-head"><h2>Freunde hinzufügen</h2></div>
+    <p class="muted small">Tretet gegeneinander an und seht, wer gerade im Gym ist.</p>${inviteBody()}</section>`;
+}
+function openInviteSheet() {
+  openSheet(`<h2 class="sheet-title">Freunde hinzufügen</h2>${inviteBody()}`, { ...friendsScreen.actions, addFriend: async () => {
+    const el = document.getElementById('fcode');
+    try { if (await addFromCode(el.value)) { el.value = ''; closeSheet(); render(); } } catch (e) { toast(e.message); }
+  } });
+}
+/** Wertung wählen: gruppiert statt 8 Segmente (HIG: höchstens ~5 auf dem iPhone). */
+function openBoardSheet() {
+  const cur = ui.params.board || 'consistency';
+  openSheet(`<h2 class="sheet-title">Wertung</h2>
+    ${BOARD_GROUPS.map(([g, keys]) => `<h3 class="sheet-h">${g}</h3><div class="list-card sheet-list-card">${keys.map((k) => `<button class="list-row board-opt${k === cur ? ' on' : ''}" data-action="pick" data-k="${k}" aria-pressed="${k === cur}">
+      <span class="lr-main"><span class="lr-title">${BOARDS[k].label}</span><span class="lr-sub">${BOARDS[k].sub}</span></span>${k === cur ? `<span class="board-check">${ICON.check}</span>` : ''}</button>`).join('')}</div>`).join('')}`, {
+    pick: (el) => { ui.params.board = el.dataset.k; closeSheet(); render(); },
+  });
+}
+
+let nameTimer, liveTimer;
 
 /** Kurzer Code, kurzer Link oder alter langer Link → Freund übernehmen. */
 export async function addFromCode(input) {
@@ -178,8 +262,17 @@ function openFriend(id) {
     return `<li class="cmp"><span class="cmp-l">${label}</span><b class="${lead === 'me' ? 'lead' : ''}">${fmt(a)}</b><b class="${lead === 'them' ? 'lead' : ''}">${fmt(b)}</b></li>`;
   };
   const kg = (v) => (v ? fmtW(v) : '–');
+  const st = f.stats || {};
+  const tw = Array.isArray(st.tw) ? st.tw : null;
+  const maxN = tw ? Math.max(1, ...tw.map((x) => x[0])) : 1;
+  const top = tw ? tw.map((x, i) => [i, ...x]).filter((x) => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
+  const usual = top.length ? `Meist ${top.map(([i, , h]) => `${WD1[i]}${h != null ? ` ${hourTxt(h)}` : ''}`).join(' · ')}` : '';
   openSheet(`<h2 class="sheet-title">${esc(f.name)}</h2>
-    <p class="muted small">Stand ${ago(f.t)} · zum Aktualisieren neuen Link schicken lassen</p>
+    <div class="fr-status${isLive(st) ? ' on' : ''}">${avatar(f.name, isLive(st), 44)}<span><b>${status(st, true)}</b><span class="muted small">Stand ${ago(f.t)}</span></span></div>
+    ${tw ? `<h3 class="sheet-h">Trainiert meist · letzte 8 Wochen</h3>
+      <div class="tw-chart" role="img" aria-label="${esc(usual || 'Keine Trainings')}">${tw.map(([n, h], i) => `<div class="tw-col"><span class="tw-bar" style="--k:${n / maxN}"></span><span class="tw-d">${WD1[i]}</span><span class="tw-h">${n ? hourTxt(h).replace(' Uhr', '') : ''}</span></div>`).join('')}</div>
+      ${usual ? `<p class="muted small">${usual}</p>` : ''}` : '<p class="muted small">Trainingszeiten sieht man, sobald ' + esc(f.name) + ' die neue Version nutzt und sie freigegeben hat.</p>'}
+    <h3 class="sheet-h">Vergleich</h3>
     <ul class="cmp-list">
       <li class="cmp head"><span class="cmp-l"></span><b>Du</b><b>${esc(f.name)}</b></li>
       ${row('Trainings (4 Wo.)', me.w4, f.stats.w4)}
@@ -207,21 +300,6 @@ function openFriend(id) {
 
 // ---------- Energy-Drinks ----------
 
-function caffeineCard() {
-  const today = mgOf(todayDrinks());
-  const week = caffeineStats(7);
-  const pct = Math.min(100, (today / DAILY_LIMIT) * 100);
-  const over = today > DAILY_LIMIT;
-  return `<section class="card caf-card">
-    <div class="card-head"><h2>Energy-Drinks</h2><button class="chip" data-action="drinks">${ICON.plus} Drink</button></div>
-    <div class="caf-row">
-      <div><span class="caf-big">${today}</span><span class="muted small"> mg heute</span></div>
-      <div class="muted small">${week.mg} mg · ${week.n} ${week.n === 1 ? 'Drink' : 'Drinks'} in 7 Tagen</div>
-    </div>
-    <div class="caf-bar${over ? ' over' : ''}"><i style="width:${pct}%"></i></div>
-    <p class="note">${over ? `Über ${DAILY_LIMIT} mg – mehr gilt laut EFSA nicht mehr als unbedenklich. Für heute reicht's.` : `Richtwert: höchstens ${DAILY_LIMIT} mg pro Tag, 200 mg auf einmal (EFSA).`}</p>
-  </section>`;
-}
 
 function openDrinkSheet() {
   const { recent, all } = drinkChoices();

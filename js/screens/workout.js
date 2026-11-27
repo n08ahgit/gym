@@ -47,6 +47,7 @@ function persist() {
 export function discardActive() {
   active = null;
   persist();
+  import('../friends.js').then((f) => f.publishMe(true)).catch(() => {}); // „trainiert gerade“ beenden
   syncWakeLock();
 }
 
@@ -77,6 +78,7 @@ export function startWorkout(dayIdx, workout) {
     restDefault: 0,
   };
   persist();
+  import('../friends.js').then((f) => f.publishMe(true)).catch(() => {}); // „trainiert gerade“ für Freunde
 }
 
 // ---------- Ablauf-Logik ----------

@@ -23,7 +23,7 @@ import { bodyTrend, dumbbells } from './coach.js';
 import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 import { caffeineStats } from './drinks.js';
 import { dayStatus } from './year.js';
-import { sessionsByDate } from './store.js';
+import { sessionsByDate, loadActive } from './store.js';
 import { lastDays } from './nutrition.js';
 
 export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' };
@@ -61,8 +61,38 @@ export function myStats(today = new Date()) {
   // Essen: Ø kcal und Protein pro Tag der letzten 7 Tage – nur Tage, an denen etwas eingetragen wurde
   const food = lastDays(7, today);
   const fk = food.avg ? food.avg.kcal : null, fp = food.avg ? food.avg.p : null;
-  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4, fk, fp, fd: food.count };
+  return { s: st.current, b: st.best, w4, v4: Math.round(v4), x4, e, bw: bt ? Math.round(bt.current * 10) / 10 : null, c7: caf.mg, dr: caf.top, m4, p4, k4, t4, fk, fp, fd: food.count, ...presence(today) };
 }
+
+/**
+ * Wann trainiere ich? (Jadons Wunsch) – nur, wenn in den Freunde-Einstellungen erlaubt.
+ *   live: { n: Workout-Name, s: Start (ms) }  solange ein Workout läuft (höchstens 4 h)
+ *   lt/ln: Ende + Name des letzten gespeicherten Workouts
+ *   tw: 7 Wochentage (Mo–So) × [Anzahl, übliche Startzeit in Stunden] der letzten 8 Wochen
+ */
+export const shareTimes = () => data.settings.shareTimes !== false;
+function presence(today = new Date()) {
+  if (!shareTimes()) return {};
+  const out = {};
+  const a = loadActive();
+  if (a?.startedAt && !a.endedAt && Date.now() - a.startedAt < 4 * 36e5) out.live = { n: String(a.workoutName || 'Training').slice(0, 24), s: a.startedAt };
+  const last = data.sessions[data.sessions.length - 1];
+  if (last) { out.lt = last.end || last.start; out.ln = String(last.workoutName || '').slice(0, 24); }
+  const from = dateStr(addDays(today, -55));
+  const tw = Array.from({ length: 7 }, () => [0, 0]);
+  for (const s of data.sessions) {
+    if (s.date < from || !s.start) continue;
+    const d = new Date(s.start);
+    const wd = (d.getDay() + 6) % 7;
+    tw[wd][0]++;
+    tw[wd][1] += d.getHours() + d.getMinutes() / 60;
+  }
+  out.tw = tw.map(([n, h]) => [n, n ? Math.round((h / n) * 2) / 2 : null]);
+  return out;
+}
+
+/** Ist ein Freund gerade im Gym? (Stand höchstens 4 h alt) */
+export const isLive = (st) => !!st?.live && Date.now() - st.live.s < 4 * 36e5 && Date.now() - st.live.s > -6e5;
 
 // ---------- Kodierung (Base64url, Umlaute-sicher) ----------
 
