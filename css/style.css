@@ -1090,3 +1090,7 @@ html.kb-open .sheet-panel { padding-bottom: 16px; }
 .bell-chip svg { width: 16px; height: 16px; }
 .bell-chip.on-rem { color: var(--accent); }
 .bw-rem-row { margin-top: 10px; }
+
+/* Drinks: Dose scannen */
+.scan-drink { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 4px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }

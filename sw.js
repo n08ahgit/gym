@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v68';
+const CACHE = 'gym-v69';
 
 const FILES = [
   './',
@@ -77,6 +77,7 @@ const FILES = [
   './js/screens/plan.js',
   './js/screens/workout.js',
   './js/supps.js',
+  './js/scanner.js',
   './js/news.js',
   './js/screens/suppui.js',
   './js/screens/sessionedit.js',

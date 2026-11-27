@@ -556,9 +556,10 @@ export async function communitySearch(q, signal) {
 export async function communityAdd(food) {
   if (!API() || !/^\d{8,14}$/.test(food.code || '')) return false;
   const { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid, code } = stripFood(food);
+  const caf = Number(food.caf) > 0 && Number(food.caf) <= 400 ? Number(food.caf) : undefined;
   const r = await fetch(`${API()}/food/add`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: myKey(), food: { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid: !!liquid, code } }),
+    body: JSON.stringify({ key: myKey(), food: { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid: !!liquid, code, ...(caf ? { caf } : {}) } }),
   }).catch(() => null);
   return !!r?.ok;
 }
