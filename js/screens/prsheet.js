@@ -9,29 +9,15 @@
 import { openSheet, closeSheet, render, toast } from '../app.js';
 import { data, exUnit, savePr, deletePr } from '../store.js';
 import { esc, fmtNum, dateStr, parseNum, fmtWU, toU, fromU, fmtDateLong } from '../util.js';
-import { allExercises, getExercise, muscleNames } from '../exercises.js';
-import { searchExercises } from '../search.js';
+import { getExercise } from '../exercises.js';
+import { openExercisePicker } from './expick.js';
 import { perDumbbell } from '../coach.js';
 import { e1rm } from '../stats.js';
 import { ICON } from './icons.js';
 
-function resultsHtml(q) {
-  const res = searchExercises(q, allExercises()).slice(0, 40);
-  if (!res.length) return '<p class="muted center-text pad">Nichts gefunden.</p>';
-  return res.map((e) => `<button class="result" data-action="pick" data-id="${esc(e.id)}">
-      <span class="result-name">${esc(e.name)}</span><span class="result-sub">${esc(muscleNames(e.primary))}</span></button>`).join('');
-}
-
 /** Schritt 1: Übung wählen. */
 function openPicker(onDone) {
-  openSheet(`<h2 class="sheet-title">Rekord eintragen</h2>
-    <p class="muted small sheet-sub">Welche Übung?</p>
-    <div class="search-bar in-sheet"><input id="prQ" class="input" type="search" data-input="q" placeholder="Suchen, z. B. Bankdrücken" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
-    <div class="results pr-results" id="prRes">${resultsHtml('')}</div>`, {
-    inputs: { q: (el) => { const r = document.getElementById('prRes'); r.innerHTML = resultsHtml(el.value); r.scrollTop = 0; } },
-    pick: (el) => openPrSheet({ exId: el.dataset.id, onDone, canChange: true }),
-  });
-  setTimeout(() => document.getElementById('prQ')?.focus(), 350);
+  openExercisePicker({ title: 'Rekord eintragen', sub: 'Welche Übung?', onPick: (id) => openPrSheet({ exId: id, onDone, canChange: true }) });
 }
 
 /**

@@ -31,6 +31,7 @@ import { openExerciseInfo, openPlates } from './exinfo.js';
 import { scheduleRestPush, cancelRestPush } from '../push.js';
 import { openSetEditor } from './setedit.js';
 import { parseMinutes } from './sessionedit.js';
+import { openExercisePicker } from './expick.js';
 
 let active = loadActive();
 
@@ -312,7 +313,7 @@ function progressBar() {
 function nextUpHtml() {
   const it = curItem();
   return `<p class="next-up">Als Nächstes: <b>${esc(it.name)}</b> · Satz ${active.cur.set + 1} von ${it.sets}</p>
-    ${movable().length > 1 ? `<button class="chip order-chip" data-action="order">${ICON.swap} Reihenfolge ändern</button>` : ''}`;
+    <button class="chip order-chip" data-action="order">${ICON.edit} Training bearbeiten</button>`;
 }
 
 function viewExercise() {
@@ -339,7 +340,7 @@ function viewExercise() {
         <h2 class="ex-name">${esc(it.name)}</h2>
         <button class="glass-circle sm" data-action="info" aria-label="Ausführung und Tipps">${ICON.info}</button>
       </div>
-      <p class="ex-muscles">${esc(muscleNames(it.primary))}${movable().length > 1 ? ` · <button class="text-btn order-link" data-action="order">${ICON.swap} Reihenfolge</button>` : ''}</p>
+      <p class="ex-muscles">${esc(muscleNames(it.primary))} · <button class="text-btn order-link" data-action="order">${ICON.edit} Bearbeiten</button></p>
       ${bodyImage(it.primary, it.secondary)}
       <div class="set-head">${prevPos() ? `<button class="text-btn back-set" data-action="prevSet" aria-label="Einen Satz zurück">${ICON.back}<span>Zurück</span></button>` : ''}<span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
       <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last, ' × ', u).replace(' × ', ` ${u}${perDumbbell(it.exId) ? ' pro Hantel' : ''} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
@@ -482,7 +483,24 @@ function moveItem(from, to) {
   persist();
 }
 
-function openOrderSheet() {
+/** Übung ist schon angefangen (mind. ein Satz erledigt oder übersprungen)? */
+const started = (i) => i < active.cur.ex || (i === active.cur.ex && active.cur.set > 0) || active.items[i].results.some(Boolean);
+
+function itemFrom(exId, base = {}) {
+  const ex = getExercise(exId);
+  return { exId, name: ex?.name || exId, primary: ex?.primary || [], secondary: ex?.secondary || [], uni: !!ex?.uni, sets: base.sets ?? 3, rest: base.rest ?? 120, results: [] };
+}
+
+/** Nach dem Entfernen/Tauschen der aktuellen Übung: Zustand aufräumen. */
+function afterCurrentChanged() {
+  active.prefill = null;
+  if (isFinished()) { if (active.phase === 'rest') endRest(); toSummary(); }
+}
+
+const fmtRest = (sec) => (sec >= 60 ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} min` : `${sec} s`);
+
+/** „Training bearbeiten“: Reihenfolge, Übung hinzufügen/tauschen/entfernen, Sätze, Pause. Nur dieses Workout. */
+function openEditSheet() {
   const draw = () => {
     const mv = movable();
     const first = mv[0];
@@ -490,10 +508,11 @@ function openOrderSheet() {
       const done = i < active.cur.ex;
       const running = i === active.cur.ex && active.cur.set > 0;
       const canMove = mv.includes(i);
-      const state = done ? 'erledigt' : running ? `läuft · Satz ${active.cur.set + 1}/${it.sets}` : i === active.cur.ex ? 'jetzt dran' : '';
+      const state = done ? (justDone(i) ? 'erledigt · noch ein Satz möglich' : 'erledigt') : running ? `läuft · Satz ${active.cur.set + 1}/${it.sets}` : i === active.cur.ex ? `jetzt dran · ${it.sets} Sätze` : `${it.sets} Sätze · ${fmtRest(it.rest)}`;
       return `<li class="order-row${done ? ' done' : ''}${running || i === active.cur.ex ? ' cur' : ''}">
         <span class="order-n">${i + 1}</span>
-        <span class="lr-main"><span class="lr-title">${esc(it.name)}</span>${state ? `<span class="lr-sub">${state}</span>` : `<span class="lr-sub">${it.sets} Sätze</span>`}</span>
+        ${done && !justDone(i) ? `<span class="lr-main"><span class="lr-title">${esc(it.name)}</span><span class="lr-sub">${state}</span></span>`
+          : `<button class="lr-main order-edit" data-action="item" data-i="${i}" aria-label="${esc(it.name)} bearbeiten"><span class="lr-title">${esc(it.name)}</span><span class="lr-sub">${state}</span></button>`}
         ${canMove ? `<span class="order-btns">
           ${i !== first ? `<button class="chip" data-action="first" data-i="${i}">${active.cur.set === 0 ? 'Jetzt' : 'Als Nächstes'}</button>` : ''}
           <button class="icon-btn sm" data-action="up" data-i="${i}" ${i === first ? 'disabled' : ''} aria-label="Nach oben">${ICON.up}</button>
@@ -502,14 +521,96 @@ function openOrderSheet() {
     }).join('');
   };
   const redraw = () => { const ul = document.getElementById('orderList'); if (ul) ul.innerHTML = draw(); };
-  openSheet(`<h2 class="sheet-title">Reihenfolge</h2>
-    <p class="muted small sheet-sub">Gilt nur für dieses Workout – dein Plan bleibt gleich.</p>
+  openSheet(`<h2 class="sheet-title">Training bearbeiten</h2>
+    <p class="muted small sheet-sub">Übung antippen zum Ändern. Gilt nur für dieses Workout – dein Plan bleibt gleich.</p>
     <ol class="order-list" id="orderList">${draw()}</ol>
+    <button class="btn ghost full add-ex" data-action="add">${ICON.plus} Übung hinzufügen</button>
     <div class="sheet-actions"><button class="btn primary big" data-action="done">Fertig</button></div>`, {
     up: (el) => { const i = +el.dataset.i; if (movable().includes(i - 1)) { moveItem(i, i - 1); redraw(); } },
     down: (el) => { const i = +el.dataset.i; if (i < active.items.length - 1) { moveItem(i, i + 1); redraw(); } },
     first: (el) => { moveItem(+el.dataset.i, movable()[0]); redraw(); },
+    item: (el) => openItemSheet(+el.dataset.i),
+    add: () => openExercisePicker({
+      title: 'Übung hinzufügen', sub: 'Kommt ans Ende – Reihenfolge danach frei änderbar.', back: openEditSheet,
+      onPick: (id) => {
+        const ref = curItem() || active.items[active.items.length - 1];
+        active.items.push(itemFrom(id, { sets: 3, rest: ref?.rest ?? 120 }));
+        persist();
+        toast(`${getExercise(id)?.name || 'Übung'} hinzugefügt`);
+        openEditSheet();
+      },
+    }),
     done: () => { closeSheet(); transition(render); },
+  });
+}
+
+/** Gerade fertig gewordene Übung (nächste noch nicht angefangen) → „noch ein Satz“ möglich. */
+const justDone = (i) => i === active.cur.ex - 1 && active.cur.set === 0 && !(active.items[active.cur.ex]?.results.some(Boolean));
+
+/** Eine Übung im laufenden Workout bearbeiten. */
+function openItemSheet(i) {
+  const it = active.items[i];
+  if (!it) return openEditSheet();
+  if (justDone(i)) {
+    return openSheet(`<h2 class="sheet-title">${esc(it.name)}</h2>
+      <p class="muted small sheet-sub">Schon fertig (${it.sets} Sätze). Noch einen dranhängen? Danach geht es normal weiter.</p>
+      <div class="sheet-actions">
+        <button class="btn primary big" data-action="more">${ICON.plus} Noch ein Satz</button>
+        <button class="btn ghost big" data-action="back">Zurück</button>
+      </div>`, {
+      more: () => {
+        active.cur = { ex: i, set: it.sets };
+        it.sets++;
+        active.prefill = null;
+        persist();
+        closeSheet();
+        toast(`Satz ${it.sets} ${it.name}`);
+        transition(render);
+      },
+      back: () => openEditSheet(),
+    });
+  }
+  const isCur = i === active.cur.ex;
+  const minSets = isCur ? active.cur.set + 1 : Math.max(1, it.results.filter(Boolean).length);
+  const fresh = !started(i);
+  const draw = () => `
+    <div class="stepper-row"><span class="lr-main"><span class="lr-title">Sätze</span>${isCur && active.cur.set ? `<span class="lr-sub">${active.cur.set} schon gemacht</span>` : ''}</span>
+      <button class="icon-btn" data-action="sets" data-d="-1" ${it.sets <= minSets ? 'disabled' : ''} aria-label="Ein Satz weniger">−</button>
+      <b class="stepper-num">${it.sets}</b>
+      <button class="icon-btn" data-action="sets" data-d="1" ${it.sets >= 10 ? 'disabled' : ''} aria-label="Ein Satz mehr">+</button></div>
+    <div class="stepper-row"><span class="lr-main"><span class="lr-title">Pause</span></span>
+      <button class="icon-btn" data-action="rest" data-d="-1" ${it.rest <= 0 ? 'disabled' : ''} aria-label="15 Sekunden weniger">−</button>
+      <b class="stepper-num">${fmtRest(it.rest)}</b>
+      <button class="icon-btn" data-action="rest" data-d="1" ${it.rest >= 600 ? 'disabled' : ''} aria-label="15 Sekunden mehr">+</button></div>`;
+  const redraw = () => { const b = document.getElementById('itemBox'); if (b) b.innerHTML = draw(); };
+  openSheet(`<h2 class="sheet-title">${esc(it.name)}</h2>
+    <div id="itemBox">${draw()}</div>
+    <div class="sheet-actions">
+      ${fresh ? '<button class="btn ghost big" data-action="swap">Übung tauschen</button>' : ''}
+      ${fresh && active.items.length > 1 ? '<button class="btn ghost big danger" data-action="remove">Aus diesem Workout entfernen</button>' : ''}
+      <button class="btn primary big" data-action="back">Fertig</button>
+    </div>
+    ${!fresh ? '<p class="muted small center-text">Schon angefangen – Tauschen und Entfernen gehen nur vor dem ersten Satz. Sätze kannst du über die Satz-Chips ändern.</p>' : ''}`, {
+    sets: (el) => { it.sets = Math.min(10, Math.max(minSets, it.sets + Number(el.dataset.d))); persist(); redraw(); },
+    rest: (el) => { it.rest = Math.min(600, Math.max(0, it.rest + Number(el.dataset.d) * 15)); persist(); redraw(); },
+    swap: () => openExercisePicker({
+      title: 'Übung tauschen', sub: `Statt ${it.name} – Sätze und Pause bleiben.`, back: () => openItemSheet(i), exclude: [it.exId],
+      onPick: (id) => {
+        active.items[i] = itemFrom(id, { sets: it.sets, rest: it.rest });
+        if (isCur) afterCurrentChanged();
+        persist();
+        toast(`Getauscht: ${getExercise(id)?.name || 'Übung'}`);
+        openEditSheet();
+      },
+    }),
+    remove: () => {
+      active.items.splice(i, 1);
+      if (isCur) afterCurrentChanged();
+      persist();
+      toast(`${it.name} entfernt`);
+      if (active.phase === 'summary') { closeSheet(); transition(render); } else openEditSheet();
+    },
+    back: () => openEditSheet(),
   });
 }
 
@@ -577,7 +678,7 @@ export const workoutScreen = {
     },
 
     editSet: (el) => openEditSet(+el.dataset.ex, +el.dataset.set),
-    order: () => openOrderSheet(),
+    order: () => openEditSheet(),
 
     useSug: () => {
       const sug = suggest(curItem().exId);

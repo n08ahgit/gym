@@ -19,6 +19,7 @@ export const NEWS = [
   { id: 'avatar', title: 'Profilbilder', text: 'Eigenes Foto wählen – Freunde sehen es in der Leiste und in der Rangliste.', where: 'Freunde → „Hinzufügen“' },
   { id: 'cheer', title: 'Freunde anfeuern', text: 'Trainiert ein Freund gerade (grüner Ring), kannst du ihm eine Motivationsnachricht schicken – mit eigenem Text oder ohne.', where: 'Freunde → Freund antippen' },
   { id: 'prs', title: 'Rekorde selbst eintragen', text: 'Bestwerte von vor der App oder aus einem Maximaltest eintragen – zählen als Bestwert, für die Rekord-Erkennung im Workout und in der Freunde-Rangliste.', where: 'Fortschritt → Kraft → „+ Rekord“' },
+  { id: 'wtedit', title: 'Training während des Trainings bearbeiten', text: 'Übungen hinzufügen, tauschen oder entfernen, Sätze und Pause ändern, Reihenfolge – und nach dem letzten Satz noch einen dranhängen. Nur für dieses Workout, der Plan bleibt.', where: 'Im Workout → „Bearbeiten“' },
 ];
 
 const KEY = 'gym.newsSeen';
