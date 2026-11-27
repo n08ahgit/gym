@@ -17,7 +17,7 @@ import { tabBar } from './tabbar.js';
 import { columnChart } from '../charts.js';
 import {
   JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood,
-  updateFood, entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterTarget, logWater, undoWater, fmtL,
+  updateFood, entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterOnly, drinksMl, waterTarget, logWater, undoWater, fmtL,
   meals, mealAsFood, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE,
   myFoods, saveMyFood, deleteMyFood, checkFood, communityAdd,
 } from '../nutrition.js';
@@ -82,9 +82,10 @@ export const foodScreen = {
         </button>
         <div class="ring-box">
           ${ring(water / wTarget, '#7fa9cf', fmtL(water).replace(' L', ''), `von ${fmtL(wTarget)}`)}
-          <span class="ring-label">Wasser</span>
+          <span class="ring-label">Trinken</span>
+          ${drinksMl(ds) ? `<span class="muted small water-split">${fmtL(waterOnly(ds))} Wasser · ${fmtL(drinksMl(ds))} Getränke</span>` : '<span class="muted small water-split">Wasser + alle Getränke</span>'}
           ${ds === today ? `<span class="water-btns"><button class="chip" data-action="water" data-ml="250">+250 ml</button><button class="chip" data-action="water" data-ml="500">+0,5 L</button></span>
-          ${water ? '<button class="text-btn muted water-undo" data-action="waterUndo">Letztes zurücknehmen</button>' : ''}` : ''}
+          ${waterOnly(ds) ? '<button class="text-btn muted water-undo" data-action="waterUndo">Letztes Wasser zurück</button>' : ''}` : ''}
         </div>
       </section>
 

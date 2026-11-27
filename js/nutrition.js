@@ -85,7 +85,8 @@ const RAW = [
   ['Currywurst mit Soße', 230, 9, 12, 16, 0.8, 8, 6, 250, 'Portion', ''], ['Schnitzel paniert', 230, 20, 12, 11, 0.6, 0.5, 2.5, 180, 'Stück', ''],
   ['Pfannkuchen', 210, 7, 26, 8, 1, 6, 3, 100, 'Stück', ''], ['Kaiserschmarrn', 260, 7, 33, 11, 1, 15, 5, 300, 'Portion', ''],
 ];
-export const FOODS = RAW.map(([name, kcal, p, c, f, fib, sug, sat, portion, unit, cat]) => ({ id: 'b:' + name, name, kcal, p, c, f, fib, sug, sat, portion, unit, cat }));
+const BUILTIN_DRINKS = new Set(['Milch 1,5 %', 'Cola', 'Orangensaft']);
+export const FOODS = RAW.map(([name, kcal, p, c, f, fib, sug, sat, portion, unit, cat]) => ({ id: 'b:' + name, name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, ...(BUILTIN_DRINKS.has(name) ? { liquid: true } : {}) }));
 
 // ---------- Profil & Bedarf ----------
 
@@ -235,7 +236,19 @@ export function undoWater(ds = dateStr()) {
   const i = data.water.map((x) => x.date).lastIndexOf(ds);
   if (i >= 0) { data.water.splice(i, 1); save(); }
 }
-export const waterOf = (ds) => data.water.filter((x) => x.date === ds).reduce((a, x) => a + x.ml, 0);
+/**
+ * Trinkmenge des Tages: Wasser (+250 ml / +0,5 L) UND alle anderen Getränke (Saft, Milch, Kaffee, Tee,
+ * Cola, Energy-Drinks …), denn laut DGE zählen alle Getränke zur Flüssigkeitszufuhr. Alkohol zählt nicht.
+ */
+export const waterOnly = (ds) => data.water.filter((x) => x.date === ds).reduce((a, x) => a + x.ml, 0);
+export function drinksMl(ds) {
+  let ml = 0;
+  for (const e of data.food) if (e.date === ds && e.ref?.liquid && !e.ref.alc && e.g) ml += e.g;
+  // Energy-Drinks/Kaffee ohne Kalorien-Eintrag (sonst schon oben gezählt)
+  for (const d of data.drinks || []) if (d.date === ds && d.ml && !d.foodId) ml += d.ml;
+  return ml;
+}
+export const waterOf = (ds) => waterOnly(ds) + drinksMl(ds);
 
 // ---------- Einträge ----------
 
@@ -249,7 +262,7 @@ export function logFood(food, grams) {
     kcal: Math.round(food.kcal * k), p: r1(food.p * k), c: r1(food.c * k), f: r1(food.f * k),
     fib: r1((food.fib || 0) * k), sug: r1((food.sug || 0) * k), sat: r1((food.sat || 0) * k),
     ...(food.meal ? { vegG: Math.round((food.vegP || 0) * k), fruitG: Math.round((food.fruitP || 0) * k), freeSug: r1((food.freeSugP || 0) * k) } : {}),
-    ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, fib: food.fib, sug: food.sug, sat: food.sat, portion: food.portion, unit: food.unit, cat: food.cat, ...(food.liquid ? { liquid: true } : {}) },
+    ref: { id: food.id, kcal: food.kcal, p: food.p, c: food.c, f: food.f, fib: food.fib, sug: food.sug, sat: food.sat, portion: food.portion, unit: food.unit, cat: food.cat, ...(food.liquid ? { liquid: true } : {}), ...(food.alc ? { alc: true } : {}), ...(food.pack ? { pack: food.pack } : {}) },
   };
   data.food.push(e);
   save();
@@ -344,7 +357,7 @@ export function healthScore(ds = dateStr(), t = targets()) {
     ['Ballaststoffe', 15, lin(s.fib, 30, 10), `${Math.round(s.fib)} / 30 g`, 'Vollkorn, Haferflocken, Hülsenfrüchte, Gemüse, Nüsse.'],
     ['Freier Zucker', 10, lin((s.freeSug * 4) / Math.max(s.kcal, 1), 0.1, 0.18), `${Math.round(s.freeSug)} g (${Math.round(((s.freeSug * 4) / Math.max(s.kcal, 1)) * 100)} % kcal)`, 'WHO: unter 10 % der Kalorien aus zugesetztem Zucker und Saft.'],
     ['Gesättigte Fette', 10, lin((s.sat * 9) / Math.max(s.kcal, 1), 0.1, 0.15), `${Math.round(s.sat)} g (${Math.round(((s.sat * 9) / Math.max(s.kcal, 1)) * 100)} % kcal)`, 'Unter 10 % der Kalorien: weniger Wurst, Butter, Fast Food – mehr Olivenöl, Nüsse, Fisch.'],
-    ['Wasser', 15, lin(water, t.water, 0), `${fmtL(water)} / ${fmtL(t.water)}`, 'Über den Tag verteilt trinken, beim Training zusätzlich.'],
+    ['Trinken', 15, lin(water, t.water, 0), `${fmtL(water)} / ${fmtL(t.water)}`, 'Wasser und alle Getränke (Kaffee, Tee, Saft, Milch …) zählen – Alkohol nicht. Am besten Wasser und ungesüßter Tee (DGE).'],
   ].map(([name, max, k, val, tip]) => ({ name, max, pts: Math.round(max * k * 10) / 10, val, tip }));
   const score = Math.round(parts.reduce((a, x) => a + x.pts, 0));
   // Wie viel der Kalorien haben Detail-Nährwerte? (Schnelleinträge haben keine)
@@ -411,7 +424,9 @@ export function packOf(p) {
   return { amount: Math.round(r[0]), liquid: r[1] };
 }
 
-const isBeverage = (p) => (p.categories_tags || []).some((t) => /^en:(beverages|drinks|energy-drinks|sodas|waters|juices|plant-based-milks)/.test(t));
+const isBeverage = (p) => (p.categories_tags || []).some((t) => /^en:(beverages|drinks|energy-drinks|sodas|waters|juices|plant-based-milks|milks)/.test(t));
+const isAlcohol = (p) => (p.categories_tags || []).some((t) => /^en:(alcoholic-beverages|beers|wines|spirits|ciders|liqueurs)/.test(t))
+  || Number(p.nutriments?.alcohol_100g || p.nutriments?.alcohol) > 0.5;
 
 function fromOFF(p) {
   const n = p.nutriments || {};
@@ -427,7 +442,7 @@ function fromOFF(p) {
     kcal: Math.round(kcal), p: r1(n.proteins_100g || 0), c: r1(n.carbohydrates_100g || 0), f: r1(n.fat_100g || 0),
     fib: r1(n.fiber_100g || 0), sug: r1(n.sugars_100g || 0), sat: r1(n['saturated-fat_100g'] || 0), cat,
     portion: Math.round(portion), unit: p.serving_quantity ? 'Portion' : liquid && pk.amount ? 'Flasche' : '100 g',
-    ...(pk.amount ? { pack: pk.amount } : {}), ...(liquid ? { liquid: true } : {}),
+    ...(pk.amount ? { pack: pk.amount } : {}), ...(liquid ? { liquid: true } : {}), ...(liquid && isAlcohol(p) ? { alc: true } : {}),
   };
 }
 
@@ -519,8 +534,8 @@ export function deleteMeal(id) {
 
 /** Nur die Nährwerte speichern (keine Hilfsfelder). */
 function stripFood(f) {
-  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit, liquid, code, pack } = f;
-  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g', ...(liquid ? { liquid: true } : {}), ...(code ? { code } : {}), ...(pack > 0 ? { pack: Math.round(pack) } : {}) };
+  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit, liquid, alc, code, pack } = f;
+  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g', ...(liquid ? { liquid: true } : {}), ...(alc ? { alc: true } : {}), ...(code ? { code } : {}), ...(pack > 0 ? { pack: Math.round(pack) } : {}) };
 }
 
 // ---------- Eigene Lebensmittel ----------
@@ -608,8 +623,8 @@ let chLoading = null;
 export function loadFoodDb() {
   if (chDb) return Promise.resolve(chDb);
   chLoading ||= fetch('data/foods-ch.json').then((r) => r.json()).then((d) => {
-    chDb = d.items.map(([name, syn, kcal, p, c, f, fib, sug, sat, cat, portion, unit, liquid]) => ({
-      id: 'ch:' + name, name, syn, kcal, p, c, f, fib, sug, sat, cat, portion, unit, liquid: !!liquid, src: 'ch',
+    chDb = d.items.map(([name, syn, kcal, p, c, f, fib, sug, sat, cat, portion, unit, liquid, alc]) => ({
+      id: 'ch:' + name, name, syn, kcal, p, c, f, fib, sug, sat, cat, portion: liquid && unit === '100 g' ? 250 : portion, unit: liquid && unit === '100 g' ? 'Glas' : unit, liquid: !!liquid, ...(alc ? { alc: true } : {}), src: 'ch',
     }));
     return chDb;
   }).catch(() => { chLoading = null; return []; });
