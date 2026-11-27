@@ -7,7 +7,7 @@
 
 import { go, render, ui, openSheet } from '../app.js';
 import { data, sessionsByDate, planVersionFor, currentVersion, plannedOf, exUnit } from '../store.js';
-import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, fmtNum, fmtBig, esc, setVol, fmtSet, fmtVol } from '../util.js';
+import { addDays, dateStr, parseDate, weekdayIdx, WD_SHORT, WEEKDAYS, fmtDateLong, fmtDurationLong, esc, setVol, fmtSet, fmtVol } from '../util.js';
 import { dayStatus } from '../year.js';
 import { dumbbells } from '../coach.js';
 import { ICON } from './icons.js';

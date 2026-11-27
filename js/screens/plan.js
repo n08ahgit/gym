@@ -8,7 +8,7 @@
 
 import { go, render, ask, toast } from '../app.js';
 import { currentPlan, setPlanDay, addCustomExercise, dayLabel } from '../store.js';
-import { WEEKDAYS, esc, fmtClock, clone, uid } from '../util.js';
+import { esc, fmtClock, clone, uid } from '../util.js';
 import { allExercises, muscleNames, MUSCLES } from '../exercises.js';
 import { searchExercises } from '../search.js';
 import { ICON } from './icons.js';

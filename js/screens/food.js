@@ -15,12 +15,7 @@ import { esc, fmtNum, fmtBig, dateStr, parseDate, addDays, fmtDateLong, parseNum
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 import { columnChart } from '../charts.js';
-import {
-  JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood,
-  updateFood, entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterOnly, drinksMl, waterTarget, logWater, undoWater, fmtL,
-  meals, mealAsFood, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE,
-  myFoods, saveMyFood, deleteMyFood, checkFood, communityAdd,
-} from '../nutrition.js';
+import { JOBS, SPORTS, LEVELS, GOALS, profile, targets, adjustHint, saveProfile, weightNow, logFood, logQuick, removeFood, updateFood, entriesOf, sumOf, lastDays, searchLocal, searchOnline, byBarcode, healthScore, waterOf, waterOnly, drinksMl, waterTarget, logWater, undoWater, fmtL, meals, mealTotals, saveMeal, deleteMeal, loadFoodDb, foodDbReady, DB_SOURCE, saveMyFood, deleteMyFood, checkFood, communityAdd } from '../nutrition.js';
 import { ask } from '../app.js';
 import { suppCard, suppActions } from './suppui.js';
 import { scanCode, canScan, makeDetector } from '../scanner.js';
@@ -331,7 +326,7 @@ function openAmountSheet(food) {
   openSheet(`<h2 class="sheet-title">${esc(food.name)}</h2>
     <p class="muted small sheet-sub">${food.meal ? `Ganzes Gericht ${fmtBig(food.totalG)} g · 1 Portion = ${fmtBig(food.portion)} g · ` : ''}Je 100 ${food.liquid ? 'ml' : 'g'}: ${food.kcal} kcal · ${fmtNum(food.p)} g Protein${food.fib ? ` · ${fmtNum(food.fib)} g Ballaststoffe` : ''}</p>
     <label class="field amount"><input id="aG" inputmode="decimal" value="${start}" data-input="g" data-enter="log"><span>${food.liquid ? 'ml' : 'g'}</span></label>
-    <div class="chips amount-chips">${chips.map(([g, l]) => `<button class="chip" data-action="setG" data-g="${g}">${l}</button>`).join('')}</div>
+    <div class="chips amount-chips">${chips.map(([g, l]) => `<button class="chip" data-action="setG" data-g="${g}">${esc(l)}</button>`).join('')}</div>
     <p class="amount-calc" id="aCalc">${calc(start)}</p>
     <div class="sheet-actions"><button class="btn primary big" data-action="log">Eintragen</button>
       ${food.meal ? '<div class="row"><button class="btn" data-action="editMeal">Gericht bearbeiten</button><button class="btn ghost danger" data-action="delMeal">Löschen</button></div>' : ''}

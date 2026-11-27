@@ -94,10 +94,6 @@ export function flameSvg(tier, { size = 96, dim = false } = {}) {
 }
 
 /** Kleine Flamme für Wochenpunkte (ohne Animation). */
-export function miniFlame(tier = 2, size = 16) {
-  return `<img class="flame-mini" src="img/flame/${FLAME_IMG[Math.max(1, tier)]}.webp" alt="" width="${size}" height="${size}">`;
-}
-
 // ---------- Feier nach dem Speichern ----------
 
 const CELEBRATED_KEY = 'gym.streakCelebrated';

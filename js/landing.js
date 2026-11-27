@@ -11,7 +11,7 @@ const ua = navigator.userAgent;
 const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = /Android/.test(ua);
 const inApp = /CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|Line\/|GSA\/|WhatsApp|Snapchat/.test(ua);
-import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
+import { PUSH_SERVER } from './push-config.js';
 
 const fParam = new URLSearchParams(location.search).get('f');
 const shortInvite = (location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1] || (/^[A-Za-z2-9]{6}$/.test(fParam || '') ? fParam : '')).toUpperCase() || null;

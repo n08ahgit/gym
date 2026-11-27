@@ -22,7 +22,7 @@
 import { data, exUnit } from './store.js';
 import { e1rm } from './stats.js';
 import { getExercise } from './exercises.js';
-import { fmtNum, fmtWU, toU, fromU } from './util.js';
+import { fmtWU, toU, fromU } from './util.js';
 
 // ---------- Übungsarten ----------
 

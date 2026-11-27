@@ -9,7 +9,7 @@
 
 import { go, render, ui, ask, toast } from '../app.js';
 import { data, updateSession, deleteSession, exUnit } from '../store.js';
-import { esc, fmtSet, fmtDateLong, fmtDurationLong, setVol, fmtVol, parseDate, dateStr, addDays } from '../util.js';
+import { esc, fmtSet, fmtDateLong, setVol, fmtVol, parseDate, dateStr, addDays } from '../util.js';
 import { ICON } from './icons.js';
 import { openSetEditor } from './setedit.js';
 import { getExercise } from '../exercises.js';

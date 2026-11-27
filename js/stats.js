@@ -185,24 +185,6 @@ export function records(limit = 6) {
   }).slice(0, limit);
 }
 
-/** Serie: wie viele Wochen in Folge (bis zur letzten abgeschlossenen) der Plan erfüllt wurde. */
-export function streakWeeks(today = new Date()) {
-  let n = 0;
-  for (let i = 1; i < 200; i++) {
-    const mon = addDays(monday(today), -i * 7);
-    const from = dateStr(mon), to = dateStr(addDays(mon, 6));
-    const planned = plannedBetween(from, to);
-    if (!planned) break;
-    if (sessionsBetween(from, to).length >= planned) n++;
-    else break;
-  }
-  // laufende Woche zählt mit, wenn sie schon erfüllt ist
-  const from = dateStr(monday(today));
-  const planned = plannedBetween(from, dateStr(addDays(monday(today), 6)));
-  if (planned && sessionsBetween(from, dateStr(today)).length >= planned) n++;
-  return n;
-}
-
 /**
  * "Gut zu wissen": Werte über die gesamte Zeit, eher zum Staunen als zum Steuern.
  */

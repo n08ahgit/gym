@@ -41,7 +41,7 @@
 // Version mit from <= Tag.
 // =============================================================
 
-import { dateStr, clone, uid, parseDate, weekdayIdx, WEEKDAYS, units } from './util.js';
+import { dateStr, clone, uid, parseDate, weekdayIdx, WEEKDAYS, units, cleanStats } from './util.js';
 
 const validCycle = (c) => !!c && /^\d{4}-\d{2}-\d{2}$/.test(c.start);
 
@@ -83,7 +83,14 @@ export function normalize(d) {
     // Profilbild (klein, data-URL) + Version für Freunde
     if (typeof d.profile.avatar === 'string' && /^data:image\/(jpeg|webp|png);base64,/.test(d.profile.avatar) && d.profile.avatar.length < 160000) { out.profile.avatar = d.profile.avatar; out.profile.avV = Number(d.profile.avV) || Date.now(); }
   }
-  if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
+  if (Array.isArray(d.friends)) {
+    out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id)
+      .map((f) => {
+        const x = { ...f, id: String(f.id).slice(0, 40), name: String(f.name).slice(0, 24), t: Number(f.t) || 0, stats: cleanStats(f.stats) };
+        if (!/^[A-Z2-9]{6}$/.test(f.code || '')) delete x.code;
+        return x;
+      });
+  }
   if (Array.isArray(d.food)) out.food = d.food.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.kcal >= 0 && x.kcal < 20000);
   if (Array.isArray(d.meals)) out.meals = d.meals.filter((m) => m && m.id && m.name && Array.isArray(m.items) && m.items.length);
   if (d.drinkNutr && typeof d.drinkNutr === 'object') out.drinkNutr = d.drinkNutr;

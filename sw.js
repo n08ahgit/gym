@@ -7,11 +7,12 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v82';
+const CACHE = 'gym-v83';
 
 const FILES = [
   './',
   './index.html',
+  './js/boot.js',
   './manifest.json',
   './css/style.css',
   './css/landing.css',

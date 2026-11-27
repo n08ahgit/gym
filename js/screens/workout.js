@@ -20,7 +20,7 @@ import { loadActive, saveActive, lastDoneSets, addSession, exUnit, setExUnit } f
 import { getExercise, muscleNames } from '../exercises.js';
 import { bodyImage } from '../bodyimage.js';
 import { beep } from '../audio.js';
-import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, fmtBig, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet, fmtWU, fromU, fmtVol } from '../util.js';
+import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, parseNum, parseRestInput, dateStr, fmtDateLong, uid, setVol, fmtSet, fmtWU, fromU, fmtVol } from '../util.js';
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';

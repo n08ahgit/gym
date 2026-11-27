@@ -27,7 +27,7 @@
 
 import { PUSH_SERVER } from './push-config.js';
 import { data, save, sessionsByDate, currentVersion, plannedOf } from './store.js';
-import { addDays, dateStr, uid, parseDate } from './util.js';
+import { addDays, dateStr, uid, parseDate, secretKey } from './util.js';
 import { bodyTrend } from './coach.js';
 
 const KCAL_PER_KG = 7700;
@@ -580,16 +580,29 @@ export function checkFood(f) {
 
 const API = () => (PUSH_SERVER || '').replace(/\/$/, '');
 const myKey = () => {
-  if (!data.profile.key) { data.profile.key = uid() + uid() + uid(); save(); }
+  if (!data.profile.key) { data.profile.key = secretKey(); save(); }
   return data.profile.key;
 };
+
+/** Produkt aus der gemeinsamen Datenbank in sichere Form bringen (Zahlen = Zahlen, Texte gekürzt). */
+function sharedFood(f) {
+  if (!f || typeof f !== 'object' || !f.name || !/^\d{8,14}$/.test(String(f.code || ''))) return null;
+  const n = (v, max) => { const x = Number(v); return Number.isFinite(x) && x >= 0 && x <= max ? x : 0; };
+  const o = { id: 'g:' + f.code, code: String(f.code), name: String(f.name).slice(0, 60), shared: true,
+    kcal: Math.round(n(f.kcal, 950)), p: n(f.p, 100), c: n(f.c, 100), f: n(f.f, 100), fib: n(f.fib, 100), sug: n(f.sug, 100), sat: n(f.sat, 100),
+    portion: n(f.portion, 2000) || 100, unit: String(f.unit || '100 g').slice(0, 20), cat: ['v', 'o', 'd', 'j'].includes(f.cat) ? f.cat : '' };
+  if (f.liquid) o.liquid = true;
+  if (n(f.pack, 10000)) o.pack = Math.round(n(f.pack, 10000));
+  if (n(f.caf, 400)) o.caf = n(f.caf, 400);
+  return o;
+}
 
 export async function communityByCode(code) {
   if (!API()) return null;
   const r = await fetch(`${API()}/food/code/${encodeURIComponent(code)}`).catch(() => null);
   if (!r?.ok) return null;
   const f = await r.json().catch(() => null);
-  return f?.name ? { ...f, id: 'g:' + code, code, shared: true } : null;
+  return sharedFood({ ...f, code });
 }
 
 export async function communitySearch(q, signal) {
@@ -597,7 +610,7 @@ export async function communitySearch(q, signal) {
   const r = await fetch(`${API()}/food/search?q=${encodeURIComponent(q)}`, { signal });
   if (!r.ok) return [];
   const d = await r.json();
-  return (d.items || []).map((f) => ({ ...f, id: 'g:' + f.code, shared: true }));
+  return (Array.isArray(d.items) ? d.items : []).map(sharedFood).filter(Boolean);
 }
 
 /** Produkt mit Barcode für alle bereitstellen (bestehende Einträge anderer bleiben unverändert). */

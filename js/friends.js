@@ -15,15 +15,14 @@
 //   bw  Körpergewicht (7-Tage-Schnitt), falls eingetragen
 // =============================================================
 
-import { data, save } from './store.js';
-import { addDays, dateStr, uid, setVol } from './util.js';
+import { data, save, sessionsByDate, loadActive } from './store.js';
+import { addDays, dateStr, setVol, cleanStats, secretKey } from './util.js';
 import { computeStreak } from './streak.js';
 import { e1rm } from './stats.js';
 import { bodyTrend, dumbbells } from './coach.js';
 import { PUSH_SERVER, SHARE_BASE } from './push-config.js';
 import { caffeineStats } from './drinks.js';
 import { dayStatus } from './year.js';
-import { sessionsByDate, loadActive } from './store.js';
 import { lastDays } from './nutrition.js';
 
 export const BIG3 = { bench_press: 'Bankdrücken', squat: 'Kniebeuge', deadlift: 'Kreuzheben' };
@@ -128,7 +127,7 @@ export function shortCode() {
   if (!data.profile.code) {
     const r = crypto.getRandomValues(new Uint8Array(6));
     data.profile.code = Array.from(r, (b) => ALPHA[b % ALPHA.length]).join('');
-    data.profile.key = uid() + uid() + uid();
+    data.profile.key = secretKey();
     save();
   }
   return data.profile.code;
@@ -194,7 +193,7 @@ export async function fetchFriend(code) {
   if (res.status === 404) throw new Error(`Code ${code} gibt es nicht – bitte prüfen.`);
   if (!res.ok) throw new Error('Server nicht erreichbar');
   const e = await res.json();
-  return { id: 'c:' + code, code, name: String(e.name).slice(0, 24), t: e.t, stats: e.stats };
+  return { id: 'c:' + code, code, name: String(e.name ?? 'Freund').slice(0, 24), t: Number(e.t) || Date.now(), stats: cleanStats(e.stats) };
 }
 
 /** Aus Eingabe den kurzen Code lesen: "k7q2mx", "…/f/K7Q2MX" → "K7Q2MX". */
@@ -329,7 +328,7 @@ export function decodeFriend(input) {
   if (!m) throw new Error('Kein gültiger Freundes-Code.');
   const o = JSON.parse(fromB64(m[1]));
   if (o?.v !== 1 || !o.id || !o.st || typeof o.st.s !== 'number') throw new Error('Kein gültiger Freundes-Code.');
-  return { id: String(o.id).slice(0, 40), name: String(o.n || 'Freund').slice(0, 24), t: Number(o.t) || Date.now(), stats: o.st };
+  return { id: String(o.id).slice(0, 40), name: String(o.n || 'Freund').slice(0, 24), t: Number(o.t) || Date.now(), stats: cleanStats(o.st) };
 }
 
 /** Freund hinzufügen oder aktualisieren. Rückgabe: 'new' | 'updated' | 'old' | 'self'. */

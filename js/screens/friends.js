@@ -10,7 +10,7 @@ import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
 import { sendCheer, friendImg, setAvatar, isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
 import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100, nutrOf, setDrinkNutr } from '../drinks.js';
 import { scanCode, canScan } from '../scanner.js';
-import { parseNum, fmtClock } from '../util.js';
+import { parseNum } from '../util.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 

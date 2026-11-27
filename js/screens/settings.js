@@ -6,7 +6,7 @@ import { go, render, ask, toast, openSheet } from '../app.js';
 import { data, importJSON, removeCustomExercise, wipeAll, resetTraining, setWeightUnit } from '../store.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
 import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
-import { esc, dateStr, APP_VERSION, fmtDateLong } from '../util.js';
+import { esc, APP_VERSION, fmtDateLong } from '../util.js';
 import { PUSH_SERVER } from '../push-config.js';
 import { muscleNames } from '../exercises.js';
 import { discardActive } from './workout.js';

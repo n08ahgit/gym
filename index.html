@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
+  <!-- Sicherheit: nur eigene Skripte (keine eingeschleusten), Bilder nur von hier oder als data:, keine Plugins/Einbettung -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https:; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <!-- viewport-fit=cover: Inhalt bis unter Notch/Home-Indicator, Abstände per safe-area-inset -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Gym</title>
@@ -30,20 +32,6 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <noscript>Diese App braucht JavaScript.</noscript>
-  <script type="module">
-    // Vom Home-Bildschirm gestartet → App. Im Browser geöffnet → Startseite mit Anleitung.
-    // "?app" oder einmal "Im Browser ausprobieren" gewählt → App auch im Browser.
-    let web = false;
-    try { web = localStorage.getItem('gym.web') === '1'; } catch {}
-    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-    const mod = standalone || web || new URLSearchParams(location.search).has('app') ? 'js/app.js' : 'js/landing.js';
-    import(new URL(mod, document.baseURI).href).catch((e) => {
-      // Nie schwarzer Bildschirm: Fehler sichtbar machen
-      document.getElementById('app').innerHTML = '<div style="padding:60px 24px;text-align:center;font-family:-apple-system,sans-serif;color:#fff">'
-        + '<h2 style="margin-bottom:10px">Seite konnte nicht geladen werden</h2><p style="color:#a9bac4;margin-bottom:20px">Bitte neu laden. Hilft das nicht, Safari schließen und den Link erneut öffnen.</p>'
-        + '<button onclick="location.reload()" style="font:inherit;padding:12px 24px;border-radius:999px;border:0;background:#8a3342;color:#fff">Neu laden</button>'
-        + '<p style="color:#5f6b72;font-size:12px;margin-top:24px">' + String(e && e.message || e).replace(/</g, '&lt;') + '</p></div>';
-    });
-  </script>
+  <script type="module" src="js/boot.js"></script>
 </body>
 </html>

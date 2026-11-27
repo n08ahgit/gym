@@ -2,7 +2,7 @@
 // util.js – kleine Hilfsfunktionen (Datum, Formatierung, Escaping)
 // =============================================================
 
-export const APP_VERSION = '3.32.0';
+export const APP_VERSION = '3.33.0';
 
 export const WEEKDAYS = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 export const WD_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -103,11 +103,44 @@ export function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+/** Geheimer Schlüssel (kryptografisch sicher, 128 Bit) – z. B. Beweis, dass ein Freundes-Code dir gehört. */
+export function secretKey() {
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
 export function clone(o) {
   return o == null ? o : JSON.parse(JSON.stringify(o));
 }
 
 /** HTML-Escaping für alles, was vom Nutzer kommt (Namen etc.). */
+/**
+ * Kennzahlen eines Freundes säubern (kommen von fremden Geräten/Links):
+ * nur bekannte Felder, Zahlen als Zahlen, Texte gekürzt. Schützt die Anzeige vor
+ * eingeschleustem HTML und kaputten Werten.
+ */
+const STAT_NUMS = ['s', 'b', 'w4', 'v4', 'x4', 'bw', 'c7', 'm4', 'p4', 'k4', 't4', 'fk', 'fp', 'fd', 'lt', 'av'];
+const finite = (v) => (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e13 ? v : null);
+export function cleanStats(st) {
+  if (!st || typeof st !== 'object') return {};
+  const out = {};
+  for (const k of STAT_NUMS) { const v = finite(st[k]); if (v != null) out[k] = v; }
+  if (st.e && typeof st.e === 'object') {
+    out.e = {};
+    for (const k of ['bench_press', 'squat', 'deadlift']) { const v = finite(st.e[k]); if (v != null) out.e[k] = v; }
+  }
+  if (Array.isArray(st.dr)) out.dr = st.dr.slice(0, 5).filter((x) => Array.isArray(x) && finite(x[1]) != null).map(([n, c]) => [String(n ?? '').slice(0, 30), c]);
+  if (st.live && typeof st.live === 'object' && finite(st.live.s) != null) out.live = { n: String(st.live.n ?? 'Training').slice(0, 24), s: st.live.s };
+  if (st.ln != null) out.ln = String(st.ln).slice(0, 24);
+  if (Array.isArray(st.tw) && st.tw.length === 7) {
+    out.tw = st.tw.map((x) => {
+      const n = Array.isArray(x) ? finite(x[0]) : null, h = Array.isArray(x) ? finite(x[1]) : null;
+      return [n != null && n >= 0 ? Math.min(Math.round(n), 999) : 0, h != null && h >= 0 && h < 24 ? h : null];
+    });
+  }
+  return out;
+}
+
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
