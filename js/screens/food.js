@@ -317,10 +317,16 @@ function openAddSheet() {
 
 function openAmountSheet(food) {
   if (!food) return;
-  const start = food.lastG || food.portion || 100;
+  // Getränk mit bekannter Flaschengröße: standardmäßig die ganze Flasche
+  const start = food.lastG || (food.liquid && food.pack ? food.pack : food.portion) || 100;
+  const u = food.liquid ? 'ml' : 'g';
   const calc = (g) => `<b>${fmtBig(food.kcal * g / 100)}</b> kcal · ${fmtNum(Math.round(food.p * g / 10) / 10)} g Protein · ${fmtNum(Math.round(food.c * g / 10) / 10)} g KH · ${fmtNum(Math.round(food.f * g / 10) / 10)} g Fett`;
-  const chips = [[food.portion, `1 ${food.unit || 'Portion'}`], [food.portion * 2, `2 ${food.unit || 'Portionen'}`], [100, '100 g']]
-    .filter(([g], i, a) => g && a.findIndex(([x]) => x === g) === i);
+  const chips = [
+    ...(food.pack ? [[food.pack, `${food.liquid ? 'Ganze Flasche' : 'Ganze Packung'} (${fmtBig(food.pack)} ${u})`]] : []),
+    [food.portion, food.portion === food.pack ? null : `1 ${food.unit && food.unit !== 'Flasche' ? food.unit : 'Portion'}`],
+    [food.portion * 2, food.portion === food.pack ? `2 ${food.liquid ? 'Flaschen' : 'Packungen'}` : `2 ${food.unit && food.unit !== 'Flasche' ? food.unit : 'Portionen'}`],
+    [100, `100 ${u}`],
+  ].filter(([g, l], i, a) => g && l && a.findIndex(([x]) => x === g) === i);
   openSheet(`<h2 class="sheet-title">${esc(food.name)}</h2>
     <p class="muted small sheet-sub">${food.meal ? `Ganzes Gericht ${fmtBig(food.totalG)} g · 1 Portion = ${fmtBig(food.portion)} g · ` : ''}Je 100 ${food.liquid ? 'ml' : 'g'}: ${food.kcal} kcal · ${fmtNum(food.p)} g Protein${food.fib ? ` · ${fmtNum(food.fib)} g Ballaststoffe` : ''}</p>
     <label class="field amount"><input id="aG" inputmode="decimal" value="${start}" data-input="g" data-enter="log"><span>${food.liquid ? 'ml' : 'g'}</span></label>

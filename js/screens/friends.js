@@ -8,7 +8,7 @@ import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
 import { BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
-import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100 } from '../drinks.js';
+import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100, nutrOf, setDrinkNutr } from '../drinks.js';
 import { scanCode, canScan } from '../scanner.js';
 import { parseNum, fmtClock } from '../util.js';
 import { ICON } from './icons.js';
@@ -225,8 +225,9 @@ function caffeineCard() {
 
 function openDrinkSheet() {
   const { recent, all } = drinkChoices();
-  const item = (d) => `<button class="drink" data-action="log" data-id="${esc(d.id)}" data-name="${esc(d.name)}" data-mg="${d.mg}" data-ml="${d.ml || ''}">
-    <span class="drink-name">${esc(d.name)}</span><span class="drink-meta">${d.ml ? `${d.ml} ml · ` : ''}<b>${d.mg} mg</b></span></button>`;
+  const list = [...recent, ...all.filter((d) => !recent.some((r) => r.name === d.name))];
+  const item = (d) => { const n = nutrOf(d); return `<button class="drink" data-action="log" data-i="${list.indexOf(d)}" data-id="${esc(d.id)}">
+    <span class="drink-name">${esc(d.name)}</span><span class="drink-meta">${d.ml ? `${d.ml} ml · ` : ''}<b>${d.mg} mg</b>${n && d.ml ? ` · ${Math.round(n.kcal * d.ml / 100)} kcal` : ''}</span></button>`; };
   const todayList = todayDrinks().slice().reverse().map((x) => `<li><span>${esc(x.name)} <span class="muted small">${new Date(x.t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span></span>
     <span class="muted small">${x.mg} mg</span><button class="icon-btn sm" data-action="undo" data-id="${esc(x.id)}" aria-label="Löschen">${ICON.x}</button></li>`).join('');
   openSheet(`<h2 class="sheet-title">Drink eintragen</h2>
@@ -241,15 +242,17 @@ function openDrinkSheet() {
     </div>
     ${todayList ? `<h3 class="sheet-h">Heute</h3><ul class="plain-list">${todayList}</ul>` : ''}`, {
     log: (el) => {
-      logDrink({ id: el.dataset.id, name: el.dataset.name, mg: +el.dataset.mg, ml: +el.dataset.ml || null });
-      closeSheet(); afterLog(+el.dataset.mg, el.dataset.name);
+      const d = list[+el.dataset.i];
+      // Kalorien unbekannt → einmal nachfragen (wird gemerkt)
+      if (!nutrOf(d) || !d.ml) return openDrinkScanSheet({ ...d, preset: true });
+      const r = logDrink(d);
+      closeSheet(); afterLog(d.mg, d.name, r.kcal);
     },
     logCustom: () => {
       const name = document.getElementById('dName').value.trim();
       const mg = parseNum(document.getElementById('dMg').value);
-      if (!name || !mg || Number.isNaN(mg) || mg > 1000) return toast('Name und Koffein in mg eingeben (z. B. 160)');
-      logDrink({ id: 'custom', name, mg: Math.round(mg) });
-      closeSheet(); afterLog(Math.round(mg), name);
+      if (!name || Number.isNaN(mg) || mg == null || mg > 1000) return toast('Name und Koffein in mg eingeben (z. B. 160)');
+      openDrinkScanSheet({ id: 'custom:' + name.toLowerCase(), name, mg: Math.round(mg), ml: null, preset: true, nutr: nutrOf({ id: 'custom:' + name.toLowerCase(), name }) });
     },
     undo: (el) => { removeDrink(el.dataset.id); closeSheet(); render(); },
     scan: () => scanCode({ onCode: lookupDrink, onCancel: openDrinkSheet }),
@@ -262,36 +265,57 @@ async function lookupDrink(code) {
   openDrinkScanSheet(d || { code, name: '', ml: 500, caf: TYPICAL_MG_100, mg: Math.round(TYPICAL_MG_100 * 5), known: false });
 }
 
-/** Gescannte Dose bestätigen: Name, Menge, Koffein (vorausgefüllt). */
+/** Drink bestätigen (gescannt, eigener oder Liste ohne bekannte Kalorien): Name, ml, Koffein, kcal je 100 ml. */
 function openDrinkScanSheet(d) {
+  const n = d.nutr || nutrOf(d);
   const per100 = () => { const ml = parseNum(document.getElementById('sdMl')?.value), mg = parseNum(document.getElementById('sdMg')?.value); return ml > 0 && mg >= 0 ? Math.round(mg / ml * 1000) / 10 : null; };
+  const info = () => {
+    const ml = parseNum(document.getElementById('sdMl')?.value), k = parseNum(document.getElementById('sdKcal')?.value);
+    const v = per100();
+    return [v != null ? `= ${v} mg Koffein pro 100 ml` : '', ml > 0 && k >= 0 ? `${Math.round(k * ml / 100)} kcal für die ganze Flasche` : ''].filter(Boolean).join(' · ');
+  };
+  const sub = d.preset ? (n ? '' : 'Einmal die Kalorien von der Dose eintragen (zuckerfrei = 0) – danach zählt der Drink automatisch auch im Kalorienrechner.')
+    : d.known ? (d.source === 'mine' ? 'Schon mal gescannt.' : 'Koffein laut Datenbank.')
+    : d.name ? `Koffein nicht in der Datenbank – Vorschlag ${TYPICAL_MG_100} mg/100 ml (EU-üblich für Energy-Drinks). <b>Bitte mit der Dose vergleichen.</b>`
+    : `Unbekannter Barcode ${esc(d.code)} – einmal eintragen, dann kennt die App die Dose.`;
   openSheet(`<h2 class="sheet-title">${d.name ? esc(d.name) : 'Neues Getränk'}</h2>
-    <p class="muted small sheet-sub">${d.known ? (d.source === 'mine' ? 'Schon mal gescannt.' : 'Koffein laut Datenbank.') : d.name ? `Koffein nicht in der Datenbank – Vorschlag ${TYPICAL_MG_100} mg/100 ml (EU-üblich für Energy-Drinks). <b>Bitte mit der Dose vergleichen.</b>` : `Unbekannter Barcode ${esc(d.code)} – einmal eintragen, dann kennt die App die Dose.`}</p>
-    <label class="gfield"><span>Name</span><input id="sdName" value="${esc(d.name)}" placeholder="z. B. Monster Mango Loco" maxlength="40" autocomplete="off"></label>
+    ${sub ? `<p class="muted small sheet-sub">${sub}</p>` : ''}
+    <label class="gfield"><span>Name</span><input id="sdName" value="${esc(d.name || '')}" placeholder="z. B. Monster Mango Loco" maxlength="40" autocomplete="off"></label>
     <div class="two-col">
-      <label class="gfield"><span>Menge (ml)</span><input id="sdMl" inputmode="numeric" value="${d.ml || ''}" placeholder="500" autocomplete="off" data-input="sd"></label>
+      <label class="gfield"><span>Menge (ml)</span><input id="sdMl" inputmode="numeric" value="${d.ml || ''}" placeholder="z. B. 500" autocomplete="off" data-input="sd"></label>
       <label class="gfield"><span>Koffein gesamt (mg)</span><input id="sdMg" inputmode="numeric" value="${d.mg ?? ''}" placeholder="160" autocomplete="off" data-input="sd"></label>
+      <label class="gfield"><span>kcal pro 100 ml</span><input id="sdKcal" inputmode="decimal" value="${n?.kcal ?? ''}" placeholder="z. B. 46 · zuckerfrei 0" autocomplete="off" data-input="sd"></label>
+      <label class="gfield"><span>Zucker pro 100 ml (g)</span><input id="sdSug" inputmode="decimal" value="${n?.sug ?? ''}" placeholder="z. B. 11" autocomplete="off"></label>
     </div>
-    <p class="muted small" id="sdPer">${d.ml ? `= ${Math.round(d.mg / d.ml * 1000) / 10} mg pro 100 ml` : ''}</p>
+    <p class="muted small" id="sdPer"></p>
     <div class="sheet-actions"><button class="btn primary big" data-action="save">Eintragen</button></div>`, {
-    inputs: { sd: () => { const v = per100(); document.getElementById('sdPer').textContent = v != null ? `= ${v} mg pro 100 ml` : ''; } },
+    inputs: { sd: () => { document.getElementById('sdPer').textContent = info(); } },
     save: () => {
       const name = document.getElementById('sdName').value.trim();
       const ml = parseNum(document.getElementById('sdMl').value);
       const mg = parseNum(document.getElementById('sdMg').value);
+      const kcal = parseNum(document.getElementById('sdKcal').value);
+      const sug = parseNum(document.getElementById('sdSug').value);
       if (!name) return toast('Name eingeben');
-      if (!(mg >= 0 && mg <= 1000) || Number.isNaN(mg)) return toast('Koffein in mg eingeben (z. B. 160)');
-      if (ml && (ml < 20 || ml > 2000)) return toast('Menge in ml prüfen');
-      const e = rememberDrink({ ...d, name, ml, mg });
-      logDrink({ id: 'scan:' + e.code, name: e.name, ml: e.ml, mg: e.mg });
-      closeSheet(); afterLog(e.mg, e.name);
+      if (!(ml >= 20 && ml <= 2000)) return toast('Menge in ml eintragen (steht auf der Flasche)');
+      if (mg == null || Number.isNaN(mg) || mg < 0 || mg > 1000) return toast('Koffein in mg eingeben (z. B. 160)');
+      if (kcal == null || Number.isNaN(kcal) || kcal < 0 || kcal > 400) return toast('kcal pro 100 ml eintragen (zuckerfrei = 0)');
+      const s2 = sug == null || Number.isNaN(sug) ? (n?.sug ?? Math.round(kcal / 4 * 10) / 10) : sug;
+      const nutr = { ...(n || {}), kcal: Math.round(kcal * 10) / 10, sug: s2, c: Math.max(n?.c ?? 0, s2) };
+      let e;
+      if (d.code) e = { id: 'scan:' + d.code, ...rememberDrink({ ...d, name, ml, mg, nutr }) };
+      else { e = { id: d.id || 'custom', name, ml: Math.round(ml), mg: Math.round(mg) }; setDrinkNutr(d.id || name, nutr); }
+      const r = logDrink({ id: e.id, name: e.name, ml: e.ml, mg: e.mg, nutr });
+      closeSheet(); afterLog(e.mg, e.name, r.kcal);
     },
   });
+  setTimeout(() => { const el = document.getElementById('sdPer'); if (el) el.textContent = info(); }, 0);
 }
 
-function afterLog(mg, name) {
+function afterLog(mg, name, kcal = null) {
   const today = mgOf(todayDrinks());
-  toast(today > DAILY_LIMIT ? `${name} eingetragen – heute ${today} mg, über dem Richtwert` : `${name} · ${mg} mg eingetragen (heute ${today} mg)`);
+  const k = kcal != null ? ` · ${kcal} kcal im Kalorienrechner` : '';
+  toast(today > DAILY_LIMIT ? `${name} eingetragen – heute ${today} mg, über dem Richtwert${k}` : `${name} · ${mg} mg${k}`);
   publishMe(true);
   render();
 }

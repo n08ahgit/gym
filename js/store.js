@@ -49,7 +49,7 @@ const ACTIVE_KEY = 'gym.active.v1';
 export const SCHEMA = 1;
 
 function emptyData() {
-  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], water: [], meals: [], myFoods: [], myDrinks: [], supps: [], suppDone: {}, nutrition: {}, settings: { bar: 20 } };
+  return { schema: SCHEMA, planVersions: [], customExercises: [], sessions: [], body: [], profile: { id: uid(), name: '' }, friends: [], drinks: [], food: [], water: [], meals: [], myFoods: [], myDrinks: [], drinkNutr: {}, supps: [], suppDone: {}, nutrition: {}, settings: { bar: 20 } };
 }
 
 /** Bringt (auch importierte) Daten in eine saubere, gültige Form. */
@@ -83,6 +83,7 @@ export function normalize(d) {
   if (Array.isArray(d.friends)) out.friends = d.friends.filter((f) => f && f.id && f.name && f.stats && f.id !== out.profile.id);
   if (Array.isArray(d.food)) out.food = d.food.filter((x) => x && x.id && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.kcal >= 0 && x.kcal < 20000);
   if (Array.isArray(d.meals)) out.meals = d.meals.filter((m) => m && m.id && m.name && Array.isArray(m.items) && m.items.length);
+  if (d.drinkNutr && typeof d.drinkNutr === 'object') out.drinkNutr = d.drinkNutr;
   if (Array.isArray(d.myDrinks)) out.myDrinks = d.myDrinks.filter((x) => x && /^\d{8,14}$/.test(x.code || '') && x.name && x.mg >= 0 && x.mg <= 1000).slice(0, 200);
   if (Array.isArray(d.myFoods)) out.myFoods = d.myFoods.filter((x) => x && x.id && x.name && x.kcal >= 0 && x.kcal <= 950).slice(0, 500);
   if (Array.isArray(d.supps)) out.supps = d.supps.filter((x) => x && x.id && x.name && /^\d{2}:\d{2}$/.test(x.time)).slice(0, 30);

@@ -383,22 +383,55 @@ export function searchLocal(q, opts = {}) {
 
 // ---------- Online: Open Food Facts (kostenlos, offene Datenbank) ----------
 
+/**
+ * Packungsgröße aus Open Food Facts: { amount, liquid } – z. B. "500 ml", "0,5 l", "33 cl", "4 x 250 ml" (→ 250 je Flasche), "1 kg".
+ */
+export function packOf(p) {
+  const conv = (v, u) => {
+    u = String(u || '').toLowerCase().replace('ℓ', 'l');
+    if (u === 'ml') return [v, true];
+    if (u === 'cl') return [v * 10, true];
+    if (u === 'dl') return [v * 100, true];
+    if (u === 'l' || u === 'lt' || u === 'liter') return [v * 1000, true];
+    if (u === 'g' || u === 'gr') return [v, false];
+    if (u === 'kg') return [v * 1000, false];
+    return null;
+  };
+  const q = String(p.quantity || '').toLowerCase().replace(/,/g, '.');
+  // Mehrfachpackung: "4 x 250 ml" → eine Flasche
+  const multi = q.match(/(\d+)\s*[x×*]\s*([\d.]+)\s*(ml|cl|dl|l|ℓ|g|kg)\b/);
+  let r = multi ? conv(parseFloat(multi[2]), multi[3]) : null;
+  if (!r) {
+    const n = parseFloat(p.product_quantity);
+    if (n > 0 && p.product_quantity_unit) r = conv(n, p.product_quantity_unit);
+  }
+  if (!r) { const m = q.match(/([\d.]+)\s*(ml|cl|dl|l|ℓ|lt|liter|g|gr|kg)\b/); if (m) r = conv(parseFloat(m[1]), m[2]); }
+  if (!r && parseFloat(p.product_quantity) > 0) r = [parseFloat(p.product_quantity), null];
+  if (!r || !(r[0] > 0) || r[0] > 10000) return { amount: null, liquid: null };
+  return { amount: Math.round(r[0]), liquid: r[1] };
+}
+
+const isBeverage = (p) => (p.categories_tags || []).some((t) => /^en:(beverages|drinks|energy-drinks|sodas|waters|juices|plant-based-milks)/.test(t));
+
 function fromOFF(p) {
   const n = p.nutriments || {};
-  const kcal = n['energy-kcal_100g'] ?? (n.energy_100g ? n.energy_100g / 4.184 : null);
+  const kcal = n['energy-kcal_100g'] ?? (n.energy_100g ? n.energy_100g / 4.184 : n['energy-kj_100g'] ? n['energy-kj_100g'] / 4.184 : null);
   if (kcal == null || !p.product_name) return null;
-  const portion = parseFloat(p.serving_quantity) || 100;
+  const pk = packOf(p);
+  const liquid = pk.liquid ?? isBeverage(p);
+  const portion = parseFloat(p.serving_quantity) || (liquid && pk.amount) || 100;
   const g = (p.food_groups_tags || []).join(' ');
   const cat = /fruit-juices/.test(g) ? 'j' : /en:fruits/.test(g) ? 'o' : /en:vegetables|legumes/.test(g) ? 'v' : /milk-and-dairy/.test(g) ? 'd' : '';
   return {
     id: 'off:' + (p.code || p._id), name: `${p.product_name}${p.brands ? ` (${String(p.brands).split(',')[0]})` : ''}`.slice(0, 60),
     kcal: Math.round(kcal), p: r1(n.proteins_100g || 0), c: r1(n.carbohydrates_100g || 0), f: r1(n.fat_100g || 0),
     fib: r1(n.fiber_100g || 0), sug: r1(n.sugars_100g || 0), sat: r1(n['saturated-fat_100g'] || 0), cat,
-    portion: Math.round(portion), unit: p.serving_quantity ? 'Portion' : '100 g',
+    portion: Math.round(portion), unit: p.serving_quantity ? 'Portion' : liquid && pk.amount ? 'Flasche' : '100 g',
+    ...(pk.amount ? { pack: pk.amount } : {}), ...(liquid ? { liquid: true } : {}),
   };
 }
 
-const OFF_FIELDS = 'code,product_name,brands,nutriments,serving_quantity,food_groups_tags';
+const OFF_FIELDS = 'code,product_name,brands,nutriments,serving_quantity,food_groups_tags,quantity,product_quantity,product_quantity_unit,categories_tags';
 
 /** Online: erst gemeinsame Datenbank der App, dann Open Food Facts. */
 export async function searchOnline(q, signal) {
@@ -486,8 +519,8 @@ export function deleteMeal(id) {
 
 /** Nur die Nährwerte speichern (keine Hilfsfelder). */
 function stripFood(f) {
-  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit, liquid, code } = f;
-  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g', ...(liquid ? { liquid: true } : {}), ...(code ? { code } : {}) };
+  const { id, name, kcal, p, c, f: fat, fib, sug, sat, cat, portion, unit, liquid, code, pack } = f;
+  return { id, name, kcal, p, c, f: fat, fib: fib || 0, sug: sug || 0, sat: sat || 0, cat: cat || '', portion: portion || 100, unit: unit || '100 g', ...(liquid ? { liquid: true } : {}), ...(code ? { code } : {}), ...(pack > 0 ? { pack: Math.round(pack) } : {}) };
 }
 
 // ---------- Eigene Lebensmittel ----------
@@ -555,11 +588,11 @@ export async function communitySearch(q, signal) {
 /** Produkt mit Barcode für alle bereitstellen (bestehende Einträge anderer bleiben unverändert). */
 export async function communityAdd(food) {
   if (!API() || !/^\d{8,14}$/.test(food.code || '')) return false;
-  const { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid, code } = stripFood(food);
+  const { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid, code, pack } = stripFood(food);
   const caf = Number(food.caf) > 0 && Number(food.caf) <= 400 ? Number(food.caf) : undefined;
   const r = await fetch(`${API()}/food/add`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: myKey(), food: { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid: !!liquid, code, ...(caf ? { caf } : {}) } }),
+    body: JSON.stringify({ key: myKey(), food: { name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid: !!liquid, code, ...(pack ? { pack } : {}), ...(caf ? { caf } : {}) } }),
   }).catch(() => null);
   return !!r?.ok;
 }
