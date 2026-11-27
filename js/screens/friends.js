@@ -7,7 +7,7 @@
 import { render, ui, openSheet, closeSheet, ask, toast } from '../app.js';
 import { data, save } from '../store.js';
 import { esc, fmtNum, fmtBig, fmtW, fmtVol } from '../util.js';
-import { setAvatar, isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
+import { friendImg, setAvatar, isLive, shareTimes, BOARDS, BIG3, leaderboard, myStats, decodeFriend, upsertFriend, removeFriend, shortCode, shortLink, publishMe, fetchFriend, parseShort, refreshFriends, linkTo } from '../friends.js';
 import { DAILY_LIMIT, logDrink, removeDrink, todayDrinks, mgOf, caffeineStats, drinkChoices, drinkByCode, rememberDrink, TYPICAL_MG_100, nutrOf, setDrinkNutr } from '../drinks.js';
 import { scanCode, canScan } from '../scanner.js';
 import { parseNum, fmtClock } from '../util.js';
@@ -101,18 +101,27 @@ export function zoomAvatar(name, img) {
   requestAnimationFrame(() => el.classList.add('in'));
 }
 
-/** Foto → quadratisch zugeschnitten, 320 px, JPEG (max. ca. 30 KB). */
+/**
+ * Foto → quadratisch zugeschnitten, 600 px (scharf auch groß auf Retina), JPEG.
+ * Verkleinert in Halbierungs-Schritten – das bleibt deutlich schärfer als ein großer Sprung.
+ */
 async function shrinkPhoto(file) {
   const src = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); });
   const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Bild konnte nicht gelesen werden')); i.src = src; });
-  const S = 320, side = Math.min(img.naturalWidth, img.naturalHeight); // scharf auch in der Großansicht
-  const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
-  const ctx = cv.getContext('2d');
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, S, S);
-  let q = 0.82, out = cv.toDataURL('image/jpeg', q);
-  while (out.length > 40000 && q > 0.4) { q -= 0.12; out = cv.toDataURL('image/jpeg', q); }
-  return out;
+  const S = 600, side = Math.min(img.naturalWidth, img.naturalHeight);
+  // quadratischen Ausschnitt in Originalgröße
+  let cv = document.createElement('canvas'); cv.width = cv.height = side;
+  cv.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, side, side);
+  // schrittweise halbieren bis kurz über S
+  while (cv.width / 2 >= S) {
+    const n = document.createElement('canvas'); n.width = n.height = Math.round(cv.width / 2);
+    const c = n.getContext('2d'); c.imageSmoothingQuality = 'high'; c.drawImage(cv, 0, 0, n.width, n.height); cv = n;
+  }
+  const out = document.createElement('canvas'); out.width = out.height = Math.min(S, cv.width);
+  const ctx = out.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(cv, 0, 0, out.width, out.height);
+  let q = 0.9, data = out.toDataURL('image/jpeg', q);
+  while (data.length > 120000 && q > 0.5) { q -= 0.08; data = out.toDataURL('image/jpeg', q); }
+  return data;
 }
 
 /** Leiste oben: wer ist im Gym, wer war zuletzt da. Live zuerst, dann nach letztem Training. */
@@ -122,7 +131,7 @@ function presenceStrip() {
   return `<section class="presence" aria-label="Wer trainiert">
     <div class="presence-head"><h2>${liveN ? `<i class="live-dot"></i>${liveN} im Gym` : 'Freunde'}</h2><button class="text-btn" data-action="invite">${ICON.plus} Hinzufügen</button></div>
     <div class="presence-row">${people.map((f) => `<button class="pr-item" data-action="friend" data-id="${esc(f.id)}" aria-label="${esc(f.name)}: ${status(f.stats, true)}">
-      ${avatar(f.name, isLive(f.stats), 52, f.img)}<span class="pr-name">${esc(f.name)}</span><span class="pr-st${isLive(f.stats) ? ' on' : ''}">${status(f.stats)}</span></button>`).join('')}</div>
+      ${avatar(f.name, isLive(f.stats), 52, friendImg(f))}<span class="pr-name">${esc(f.name)}</span><span class="pr-st${isLive(f.stats) ? ' on' : ''}">${status(f.stats)}</span></button>`).join('')}</div>
   </section>`;
 }
 
@@ -136,7 +145,7 @@ export const friendsScreen = {
     const list = rows.map((r, i) => `
       <button class="list-row rank-row${r.me ? ' me' : ''}" data-action="${r.me ? 'zoomMe' : 'friend'}" data-id="${esc(r.id)}">
         <span class="rank${i < 3 && r.value != null ? ` r${i + 1}` : ''}">${r.value == null ? '–' : i + 1}</span>
-        ${r.me ? meAvatar(34) : avatar(r.name, false, 34, r.img)}
+        ${r.me ? meAvatar(34) : avatar(r.name, false, 34, friendImg(r))}
         <span class="lr-main"><span class="lr-title">${esc(r.name)}${r.me ? ' <span class="you">Du</span>' : ''}${!r.me && isLive(r.stats) ? ' <i class="live-dot" aria-label="trainiert gerade"></i>' : ''}</span>
           <span class="lr-sub">${detail(key, r.stats) || (r.me ? 'aktueller Stand' : `Stand ${ago(r.t)}`)}</span></span>
         <span class="lr-value">${fmtValue(key, r.value)}${key !== 'volume' && key !== 'strength' && r.value != null ? `<small> ${BOARDS[key].unit}</small>` : ''}</span>
@@ -322,7 +331,7 @@ function openFriend(id) {
   const top = tw ? tw.map((x, i) => [i, ...x]).filter((x) => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
   const usual = top.length ? `Meist ${top.map(([i, , h]) => `${WD1[i]}${h != null ? ` ${hourTxt(h)}` : ''}`).join(' · ')}` : '';
   openSheet(`<h2 class="sheet-title">${esc(f.name)}</h2>
-    <div class="fr-status${isLive(st) ? ' on' : ''}"><button class="ava-btn" data-action="zoom" aria-label="Profilbild von ${esc(f.name)} groß anzeigen">${avatar(f.name, isLive(st), 52, f.img)}</button><span class="fr-text"><b>${status(st, true)}</b><span class="muted small">Stand ${ago(f.t)}</span></span></div>
+    <div class="fr-status${isLive(st) ? ' on' : ''}"><button class="ava-btn" data-action="zoom" aria-label="Profilbild von ${esc(f.name)} groß anzeigen">${avatar(f.name, isLive(st), 52, friendImg(f))}</button><span class="fr-text"><b>${status(st, true)}</b><span class="muted small">Stand ${ago(f.t)}</span></span></div>
     ${tw ? `<h3 class="sheet-h">Trainiert meist · letzte 8 Wochen</h3>
       <div class="tw-chart" role="img" aria-label="${esc(usual || 'Keine Trainings')}">${tw.map(([n, h], i) => `<div class="tw-col"><span class="tw-bar" style="--k:${n / maxN}"></span><span class="tw-d">${WD1[i]}</span><span class="tw-h">${n ? hourTxt(h).replace(' Uhr', '') : ''}</span></div>`).join('')}</div>
       ${usual ? `<p class="muted small">${usual}</p>` : ''}` : (Array.isArray(st.tw) ? `<p class="muted small">${esc(f.name)} hat in den letzten 8 Wochen noch nicht trainiert.</p>` : '<p class="muted small">Trainingszeiten sieht man, sobald ' + esc(f.name) + ' die neue Version nutzt und sie freigegeben hat.</p>')}
@@ -343,7 +352,7 @@ function openFriend(id) {
     </ul>
     ${f.stats.dr?.length ? `<p class="muted small">${esc(f.name)} trinkt am meisten: ${f.stats.dr.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</p>` : ''}
     <div class="sheet-actions"><button class="btn ghost big danger" data-action="del">Aus Rangliste entfernen</button></div>`, {
-    zoom: () => zoomAvatar(f.name, f.img),
+    zoom: () => zoomAvatar(f.name, friendImg(f)),
     del: async () => {
       closeSheet();
       if (!(await ask(`${f.name} entfernen?`, 'Mit einem neuen Link kannst du ihn jederzeit wieder hinzufügen.', 'Entfernen', true))) return;

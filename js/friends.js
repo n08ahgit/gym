@@ -245,18 +245,29 @@ export async function setAvatar(img) {
   } catch { return false; }
 }
 
+// Bilder der Freunde liegen getrennt (nicht in den Trainingsdaten → Speichern/Backups bleiben schnell)
+const AVA = 'gym.ava.';
+export function friendImg(f) {
+  if (!f?.code) return f?.img || null;
+  try { return localStorage.getItem(AVA + f.code) || f.img || null; } catch { return f.img || null; }
+}
+function storeFriendImg(code, img) {
+  try { if (img) localStorage.setItem(AVA + code, img); else localStorage.removeItem(AVA + code); return true; } catch { return false; }
+}
+
 /** Profilbilder der Freunde nachladen, wenn sich ihre Version geändert hat. */
 async function syncAvatars() {
   let changed = false;
   await Promise.all(data.friends.filter((f) => f.code).map(async (f) => {
     const v = f.stats?.av || null;
-    if (!v) { if (f.img) { delete f.img; delete f.av; changed = true; } return; }
-    if (f.av === v && f.img) return;
+    if (f.img) { storeFriendImg(f.code, f.img); delete f.img; changed = true; } // alte Ablage umziehen
+    if (!v) { if (f.av) { storeFriendImg(f.code, null); delete f.av; changed = true; } return; }
+    if (f.av === v && friendImg(f)) return;
     try {
       const r = await fetch(`${API}/friend/${f.code}/avatar`);
       if (!r.ok) return;
       const a = await r.json();
-      if (a?.img) { f.img = a.img; f.av = v; changed = true; }
+      if (a?.img && storeFriendImg(f.code, a.img)) { f.av = v; changed = true; }
     } catch { /* offline */ }
   }));
   return changed;
