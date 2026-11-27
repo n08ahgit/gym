@@ -20,14 +20,24 @@ export const NEWS = [
 ];
 
 const KEY = 'gym.newsSeen';
+const HIDE = 'gym.newsHidden';
+const load = (k) => { try { return new Set(JSON.parse(localStorage.getItem(k) || '[]')); } catch { return new Set(); } };
+const store = (k, set) => { try { localStorage.setItem(k, JSON.stringify([...set])); } catch { /* privat-Modus */ } };
 
-function seen() {
-  try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return new Set(); }
-}
-
-export const unseen = () => { const s = seen(); return NEWS.filter((n) => !s.has(n.id)); };
+/** Sichtbare Neuheiten (nicht selbst gelöscht), neueste zuerst. */
+export const visibleNews = () => { const h = load(HIDE); return NEWS.filter((n) => !h.has(n.id)).reverse(); };
+/** Ungesehen = noch nicht auf „Gesehen“ gedrückt und nicht gelöscht. Nur dann roter Punkt. */
+export const unseen = () => { const s = load(KEY), h = load(HIDE); return NEWS.filter((n) => !s.has(n.id) && !h.has(n.id)); };
 export const hasUnseen = () => unseen().length > 0;
 
-export function markSeen() {
-  try { localStorage.setItem(KEY, JSON.stringify(NEWS.map((n) => n.id))); } catch { /* privat-Modus: dann eben jedes Mal */ }
+/** Einen (id) oder alle Einträge als gesehen markieren – nur auf Knopfdruck. */
+export function markSeen(id = null) {
+  const s = load(KEY);
+  for (const n of NEWS) if (!id || n.id === id) s.add(n.id);
+  store(KEY, s);
+}
+/** Eintrag löschen (nur auf diesem Gerät, gilt auch als gesehen). */
+export function hideNews(id) {
+  const h = load(HIDE); h.add(id); store(HIDE, h);
+  markSeen(id);
 }
