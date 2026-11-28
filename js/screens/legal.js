@@ -7,13 +7,8 @@
 
 import { openSheet, toast } from '../app.js';
 
-export const LEGAL = {
-  impressum: 'Impressum',
-  datenschutz: 'Datenschutz',
-  agb: 'AGB',
-  widerruf: 'Widerrufsbelehrung',
-  lizenzen: 'Lizenzen',
-};
+import { LEGAL } from '../legalstatus.js';
+export { LEGAL, finalLegal, isFinal } from '../legalstatus.js';
 
 export async function openLegal(name) {
   try {

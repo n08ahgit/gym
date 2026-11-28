@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v85';
+const CACHE = 'gym-v86';
 
 const FILES = [
   './',
@@ -90,6 +90,7 @@ const FILES = [
   './js/scan.js',
   './js/screens/scanui.js',
   './js/screens/legal.js',
+  './js/legalstatus.js',
   './legal/legal.css',
   './legal/impressum.html',
   './legal/datenschutz.html',

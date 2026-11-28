@@ -647,6 +647,23 @@ if (['food', 'progress'].includes(qs.get('tab')) && !hasActive()) {
   if (qs.get('bw')) openWeigh();
   history.replaceState(null, '', location.pathname + '?app');
 }
+// Alte Adresse (GitHub Pages) → Umzugshinweis: Daten per Konto oder Datensicherung mitnehmen
+const NEW_HOME = 'https://gymapp-de.pages.dev';
+if (/github\.io$/.test(location.hostname) && !window.GYM_DEMO) {
+  const bar = document.createElement('button');
+  bar.className = 'move-bar';
+  bar.textContent = 'Die App ist umgezogen – so nimmst du deine Daten mit';
+  bar.addEventListener('click', () => openSheet(`<h2 class="sheet-title">Neue Adresse</h2>
+    <p>Die App läuft jetzt unter <b>gymapp-de.pages.dev</b>. Deine Daten liegen auf dieser alten Adresse – so nimmst du sie mit:</p>
+    <ol class="move-steps"><li><b>Mit Konto (am einfachsten):</b> hier Einstellungen → „Konto“ → Konto erstellen. Dann die neue Adresse öffnen, zum Home-Bildschirm hinzufügen und dort mit demselben Namen und Passwort anmelden – alles ist da.</li>
+    <li><b>Ohne Konto:</b> hier Einstellungen → „Datensicherung“ → exportieren, dann in der neuen App importieren.</li></ol>
+    <p class="muted small">Mitteilungen danach in der neuen App wieder einschalten.</p>
+    <div class="sheet-actions"><a class="btn primary big" href="${NEW_HOME}/?app">Neue Adresse öffnen</a><button class="btn big" data-action="acct">Konto erstellen</button></div>`, {
+    acct: () => { closeSheet(); go('settings'); import('./screens/settings.js').then((m) => setTimeout(() => m.openAccountSheet('register'), 400)); },
+  }));
+  document.body.appendChild(bar);
+}
+
 // Rückkehr von der Stripe-Zahlungsseite bzw. Link „Vertrag widerrufen“ (aus Mail/Startseite)
 const kauf = qs.get('kauf');
 if (kauf || qs.has('widerruf')) {

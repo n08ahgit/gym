@@ -12,6 +12,7 @@ const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' 
 const isAndroid = /Android/.test(ua);
 const inApp = /CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|Line\/|GSA\/|WhatsApp|Snapchat/.test(ua);
 import { PUSH_SERVER } from './push-config.js';
+import { LEGAL, finalLegal } from './legalstatus.js';
 
 const fParam = new URLSearchParams(location.search).get('f');
 const shortInvite = (location.pathname.match(/\/f\/([A-Za-z2-9]{6})\/?$/)?.[1] || (/^[A-Za-z2-9]{6}$/.test(fParam || '') ? fParam : '')).toUpperCase() || null;
@@ -104,7 +105,7 @@ async function render() {
   document.title = 'Gym – Trainingsplan & Workout-Tracker';
   const root = document.getElementById('app');
   root.className = 'landing';
-  root.innerHTML = `
+  root.innerHTML = `${/github\.io$/.test(location.hostname) ? '<a class="ld-move" href="https://gymapp-de.pages.dev">Die App ist umgezogen: <b>gymapp-de.pages.dev</b> →</a>' : ''}
     <header class="ld-hero">
       <img class="ld-icon" src="icons/icon-192.png" alt="" width="72" height="72">
       <h1>Dein Training.<br>Klar geplant, sauber getrackt.</h1>
@@ -151,10 +152,12 @@ async function render() {
     <footer class="ld-foot">
       <button class="text-btn" data-web>Ohne Installation im Browser ausprobieren</button>
       <nav class="ld-legal" aria-label="Rechtliches">
-        <a href="legal/impressum.html">Impressum</a> · <a href="legal/datenschutz.html">Datenschutz</a> · <a href="legal/agb.html">AGB</a> · <a href="legal/widerruf.html">Widerrufsbelehrung</a> · <a href="?app&amp;widerruf">Vertrag widerrufen</a> · <a href="legal/lizenzen.html">Lizenzen</a>
+        ${['impressum', 'datenschutz', 'agb', 'widerruf', 'lizenzen'].map((k) => `<a href="legal/${k}.html" data-legal="${k}" hidden>${LEGAL[k]}</a>`).join('')}<a href="?app&amp;widerruf">Vertrag widerrufen</a>
       </nav>
     </footer>`;
 
+  // Rechtstexte erst verlinken, wenn sie fertig sind
+  finalLegal().then((fin) => { for (const [k, ok] of Object.entries(fin)) if (ok) root.querySelector(`[data-legal="${k}"]`)?.removeAttribute('hidden'); });
   root.addEventListener('click', async (e) => {
     const c = e.target.closest('[data-copy]');
     if (c) {

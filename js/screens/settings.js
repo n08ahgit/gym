@@ -14,7 +14,7 @@ import { discardActive } from './workout.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 import { visibleNews, unseen, markSeen, hideNews } from '../news.js';
-import { openLegal, LEGAL } from './legal.js';
+import { openLegal, LEGAL, finalLegal } from './legal.js';
 
 /** Neuheiten: eine Zeile pro Funktion, neueste oben, auf-/zuklappbar (Zustand pro Gerät). */
 const NEWS_OPEN = 'gym.newsOpen';
@@ -61,8 +61,8 @@ export const settingsScreen = {
           ${setRow('openCustom', ICON.dumbbell, 'Eigene Übungen', data.customExercises.length ? `${data.customExercises.length} angelegt` : 'Noch keine')}
         </section>
 
-        <section class="card list-card set-list legal-list">
-          ${['impressum', 'datenschutz', 'agb', 'widerruf', 'lizenzen'].map((k) => `<button class="list-row set-row" data-action="legal" data-k="${k}"><span class="lr-main"><span class="lr-title">${LEGAL[k]}</span></span><span class="chev">${ICON.chev}</span></button>`).join('')}
+        <section class="card list-card set-list legal-list" id="legalList">
+          ${['impressum', 'datenschutz', 'agb', 'widerruf', 'lizenzen'].map((k) => `<button class="list-row set-row" data-action="legal" data-k="${k}" hidden><span class="lr-main"><span class="lr-title">${LEGAL[k]}</span></span><span class="chev">${ICON.chev}</span></button>`).join('')}
           <button class="list-row set-row" data-action="widerrufen"><span class="lr-main"><span class="lr-title">Vertrag widerrufen</span><span class="lr-sub">Für gekaufte KI-Scans</span></span><span class="chev">${ICON.chev}</span></button>
         </section>
 
@@ -87,6 +87,8 @@ export const settingsScreen = {
   after(root) {
     // Angeschaut = gesehen: roter Punkt weg (die „Neu“-Markierung bleibt bis zum nächsten Öffnen sichtbar)
     markSeen();
+    // Rechtstexte erst zeigen, wenn sie fertig sind (Entwürfe bleiben verborgen)
+    finalLegal().then((fin) => { for (const [k, ok] of Object.entries(fin)) if (ok) document.querySelector(`#legalList [data-k="${k}"]`)?.removeAttribute('hidden'); });
     document.querySelector('.tab-dot')?.remove();
     // Neuheiten gelten als gelesen, sobald man sie gesehen hat (Markierung „Neu“ bleibt bis zum nächsten Öffnen)
   },
