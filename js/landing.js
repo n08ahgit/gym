@@ -150,6 +150,9 @@ async function render() {
 
     <footer class="ld-foot">
       <button class="text-btn" data-web>Ohne Installation im Browser ausprobieren</button>
+      <nav class="ld-legal" aria-label="Rechtliches">
+        <a href="legal/impressum.html">Impressum</a> · <a href="legal/datenschutz.html">Datenschutz</a> · <a href="legal/agb.html">AGB</a> · <a href="legal/widerruf.html">Widerrufsbelehrung</a> · <a href="?app&amp;widerruf">Vertrag widerrufen</a> · <a href="legal/lizenzen.html">Lizenzen</a>
+      </nav>
     </footer>`;
 
   root.addEventListener('click', async (e) => {

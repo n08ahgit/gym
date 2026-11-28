@@ -647,6 +647,12 @@ if (['food', 'progress'].includes(qs.get('tab')) && !hasActive()) {
   if (qs.get('bw')) openWeigh();
   history.replaceState(null, '', location.pathname + '?app');
 }
+// Rückkehr von der Stripe-Zahlungsseite bzw. Link „Vertrag widerrufen“ (aus Mail/Startseite)
+const kauf = qs.get('kauf');
+if (kauf || qs.has('widerruf')) {
+  history.replaceState(null, '', location.pathname + '?app');
+  import('./screens/scanui.js').then((m) => setTimeout(() => (kauf ? m.afterCheckout(kauf) : m.openWiderruf()), 600));
+}
 navigator.serviceWorker?.addEventListener('message', (e) => {
   if (hasActive() || !['food', 'progress'].includes(e.data?.go)) return;
   go(e.data.go);

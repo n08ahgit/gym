@@ -255,6 +255,10 @@ function openAddSheet() {
       ${canScan() ? `<button class="btn" data-action="scan" aria-label="Barcode scannen">${ICON.barcode}</button>` : ''}
     </div>
     <p class="muted small" id="onlineState" style="margin:6px 2px 0"></p>
+    <div class="ki-btns" id="kiBtns" hidden>
+      <button class="btn ki-btn" data-action="kiPhoto">${ICON.food} KI-Scan: Foto</button>
+      <button class="btn ki-btn" data-action="kiText">${ICON.edit} Beschreiben</button>
+    </div>
     <div class="own-btns">
       <button class="btn dashed" data-action="newFood">${ICON.plus} Eigene Zutat</button>
       <button class="btn dashed" data-action="newMeal">${ICON.plus} Eigenes Gericht</button>
@@ -297,6 +301,8 @@ function openAddSheet() {
     pick: (el) => openAmountSheet([...results, ...online][Number(el.dataset.i)]),
     newMeal: () => openMealBuilder(),
     newFood: () => openFoodForm(),
+    kiPhoto: () => import('./scanui.js').then((m) => m.startScan('photo')),
+    kiText: () => import('./scanui.js').then((m) => m.startScan('text')),
     quick: () => {
       const num = (id) => { const x = parseNum(document.getElementById(id).value); return x && !Number.isNaN(x) ? x : 0; };
       const vals = { kcal: num('qKcal'), p: num('qP'), c: num('qC'), f: num('qF') };
@@ -306,6 +312,8 @@ function openAddSheet() {
     },
     scan: () => scanBarcode(),
   });
+  // KI-Scan-Knöpfe nur zeigen, wenn der Scan freigeschaltet ist
+  import('../scan.js').then((m) => m.shopStatus()).then((st) => { if (st.scan) document.getElementById('kiBtns')?.removeAttribute('hidden'); }).catch(() => {});
   setTimeout(() => document.getElementById('foodQ')?.focus(), 350);
   // Große Datenbank im Hintergrund laden; ist schon gesucht worden, Ergebnis auffrischen
   if (!foodDbReady()) loadFoodDb().then(() => { const q = document.getElementById('foodQ'); if (q?.value.trim()) { results = searchLocal(q.value); redraw(); } });
@@ -331,7 +339,8 @@ function openAmountSheet(food) {
     <div class="sheet-actions"><button class="btn primary big" data-action="log">Eintragen</button>
       ${food.meal ? '<div class="row"><button class="btn" data-action="editMeal">Gericht bearbeiten</button><button class="btn ghost danger" data-action="delMeal">Löschen</button></div>' : ''}
       ${food.mine ? `<div class="row"><button class="btn" data-action="editFood">${food.code ? 'Nährwerte ändern' : 'Bearbeiten'}</button><button class="btn ghost danger" data-action="delFood">Aus Liste</button></div>` : ''}</div>
-    ${food.mine || food.shared ? `<p class="source">${food.code ? `Barcode ${esc(food.code)} · für alle Gym-Nutzer` : 'Selbst angelegt · nur für dich'}</p>` : ''}`, {
+    ${food.mine || food.shared ? `<p class="source">${food.code ? `Barcode ${esc(food.code)} · für alle Gym-Nutzer` : 'Selbst angelegt · nur für dich'}${food.shared && !food.mine ? ' · <button class="text-btn" data-action="report">Eintrag melden</button>' : ''}</p>` : ''}`, {
+    report: () => import('./scanui.js').then((m) => m.openReport('food', food.code, food.name)),
     editFood: () => openFoodForm(food),
     delFood: async () => {
       closeSheet();

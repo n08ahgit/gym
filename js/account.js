@@ -116,7 +116,7 @@ async function call(op, body) {
 // Freunde: nur Mitgliedschaft (id, code, name) – Kennzahlen holt jedes Gerät selbst vom Server.
 
 const COLL = { sessions: 'id', food: 'id', water: 'id', drinks: 'id', meals: 'id', myFoods: 'id', myDrinks: 'code', supps: 'id', prs: 'id', customExercises: 'id', friends: 'id', body: 'date', planVersions: 'from' };
-const OBJ = ['profile', 'settings', 'nutrition', 'drinkNutr'];
+const OBJ = ['profile', 'settings', 'nutrition', 'drinkNutr', 'wallet'];
 
 export function toSync(d) {
   const o = {};

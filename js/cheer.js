@@ -30,11 +30,15 @@ function next() {
   el.className = 'cheer';
   el.setAttribute('role', 'status');
   el.innerHTML = `<span class="cheer-ic" aria-hidden="true">💪</span>
-    <span class="cheer-tx"><b>${esc(c.name || 'Ein Freund')} feuert dich an</b><span>${esc(c.text || 'Gib alles – du schaffst das!')}</span></span>`;
+    <span class="cheer-tx"><b>${esc(c.name || 'Ein Freund')} feuert dich an</b><span>${esc(c.text || 'Gib alles – du schaffst das!')}</span></span>
+    ${c.text ? '<button class="cheer-rep" aria-label="Nachricht melden">Melden</button>' : ''}`;
   document.body.appendChild(el);
   navigator.vibrate?.([30, 60, 30]);
   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
   const close = () => { el.classList.remove('in'); setTimeout(() => { el.remove(); next(); }, 300); };
-  el.addEventListener('click', close);
+  el.addEventListener('click', (e) => {
+    if (e.target.closest('.cheer-rep')) import('./screens/scanui.js').then((m) => m.openReport('cheer', c.from, c.text));
+    close();
+  });
   setTimeout(close, 6000);
 }

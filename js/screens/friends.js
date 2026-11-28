@@ -359,7 +359,9 @@ function openFriend(id) {
       ${row('Koffein (7 Tage)', me.c7, f.stats.c7, (v) => (v == null ? '–' : `${v} mg`))}
     </ul>
     ${f.stats.dr?.length ? `<p class="muted small">${esc(f.name)} trinkt am meisten: ${f.stats.dr.map(([n, c]) => `${esc(n)} (${c}×)`).join(', ')}</p>` : ''}
-    <div class="sheet-actions"><button class="btn ghost big danger" data-action="del">Aus Rangliste entfernen</button></div>`, {
+    <div class="sheet-actions"><button class="btn ghost big danger" data-action="del">Aus Rangliste entfernen</button>
+      ${f.code ? '<button class="text-btn muted" data-action="report">Profil melden (Name/Bild)</button>' : ''}</div>`, {
+    report: () => import('./scanui.js').then((m) => m.openReport('avatar', f.code, f.name)),
     zoom: () => zoomAvatar(f.name, friendImg(f)),
     cheerPick: (el) => { const i = document.getElementById('cheerText'); if (i) i.value = el.dataset.t; },
     cheer: async (el) => {

@@ -14,6 +14,7 @@ import { discardActive } from './workout.js';
 import { ICON } from './icons.js';
 import { tabBar } from './tabbar.js';
 import { visibleNews, unseen, markSeen, hideNews } from '../news.js';
+import { openLegal, LEGAL } from './legal.js';
 
 /** Neuheiten: eine Zeile pro Funktion, neueste oben, auf-/zuklappbar (Zustand pro Gerät). */
 const NEWS_OPEN = 'gym.newsOpen';
@@ -53,10 +54,16 @@ export const settingsScreen = {
               <button class="seg-item${data.settings.unit === 'lb' ? '' : ' on'}" data-action="unit" data-u="kg">kg</button>
               <button class="seg-item${data.settings.unit === 'lb' ? ' on' : ''}" data-action="unit" data-u="lb">lb</button>
             </div></div>
+          ${setRow('openScan', ICON.food, 'KI-Scan', 'Guthaben, Kauf-Code, Scans kaufen')}
           ${setRow('openWarm', ICON.dumbbell, 'Aufwärmsätze', warmLabel())}
           ${setRow('openPush', ICON.bell, 'Mitteilungen', pushLabel())}
           ${setRow('openBackup', ICON.shield, 'Datensicherung', exportShort())}
           ${setRow('openCustom', ICON.dumbbell, 'Eigene Übungen', data.customExercises.length ? `${data.customExercises.length} angelegt` : 'Noch keine')}
+        </section>
+
+        <section class="card list-card set-list legal-list">
+          ${['impressum', 'datenschutz', 'agb', 'widerruf', 'lizenzen'].map((k) => `<button class="list-row set-row" data-action="legal" data-k="${k}"><span class="lr-main"><span class="lr-title">${LEGAL[k]}</span></span><span class="chev">${ICON.chev}</span></button>`).join('')}
+          <button class="list-row set-row" data-action="widerrufen"><span class="lr-main"><span class="lr-title">Vertrag widerrufen</span><span class="lr-sub">Für gekaufte KI-Scans</span></span><span class="chev">${ICON.chev}</span></button>
         </section>
 
         <section class="card list-card set-list">
@@ -69,6 +76,7 @@ export const settingsScreen = {
             ${data.sessions.length} gespeicherte Workouts${first ? ` · Plan seit ${fmtDateLong(first)}` : ''}<br>
             Version ${APP_VERSION}
           </p>
+          <p class="muted small">Trainings- und Ernährungstagebuch für gesunde Erwachsene. Kein Medizinprodukt, keine Diagnose, Therapie oder medizinische Beratung. Kalorien- und KI-Werte sind Schätzungen.</p>
           <button class="btn ghost full" data-action="resetTraining">Fortschritt zurücksetzen</button>
           <button class="btn ghost danger full" data-action="wipe">Alle Daten löschen</button>
         </section>
@@ -98,6 +106,9 @@ export const settingsScreen = {
     },
     openPush: () => openPushSheet(),
     openAccount: () => openAccountSheet(),
+    openScan: () => import('./scanui.js').then((m) => m.openScanSettings()),
+    legal: (el) => openLegal(el.dataset.k),
+    widerrufen: () => import('./scanui.js').then((m) => m.openWiderruf()),
     openWarm: () => openWarmSettings(() => render()),
     openBackup: () => openBackupSheet(),
     openCustom: () => openCustomSheet(),

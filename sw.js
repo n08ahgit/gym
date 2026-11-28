@@ -7,7 +7,7 @@
 // eine neue Version sofort (während eines Workouts erst danach).
 // =============================================================
 
-const CACHE = 'gym-v84';
+const CACHE = 'gym-v85';
 
 const FILES = [
   './',
@@ -87,6 +87,15 @@ const FILES = [
   './js/screens/prsheet.js',
   './js/screens/expick.js',
   './js/account.js',
+  './js/scan.js',
+  './js/screens/scanui.js',
+  './js/screens/legal.js',
+  './legal/legal.css',
+  './legal/impressum.html',
+  './legal/datenschutz.html',
+  './legal/agb.html',
+  './legal/widerruf.html',
+  './legal/lizenzen.html',
   './js/screens/settings.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

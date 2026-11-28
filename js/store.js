@@ -27,6 +27,7 @@
 //   meals: [ { id, name, servings, items: [ { food (Werte je 100 g), g } ] } ],  // eigene Gerichte
 //   myFoods: [ { id: 'u:…', name, kcal, p, c, f, fib, sug, sat, portion, unit, cat, liquid?, code? } ], // eigene Lebensmittel (je 100 g)
 //   prs: [ { id, exId, w (kg), r, date } ],        // selbst eingetragene Rekorde (zählen als Bestwert)
+//   wallet: { code },                              // Kauf-Code für KI-Scan-Guthaben (Guthaben selbst nur auf dem Server)
 //   supps: [ { id, name, dose, time: 'HH:MM', rep: { type: 'daily'|'days'|'every'|'once', days, n, start }, hint, nag } ],
 //   suppDone: { 'YYYY-MM-DD': [ids] },             // abgehakte Supplements
 //   nutrition: { sex, age, height, weight, bodyFat?, job, steps?, trainDays, trainMin, sport, sportHours, level, goal, targetWeight?, targetDate?, kcal?, adjust? },
@@ -97,6 +98,7 @@ export function normalize(d) {
   if (Array.isArray(d.myDrinks)) out.myDrinks = d.myDrinks.filter((x) => x && /^\d{8,14}$/.test(x.code || '') && x.name && x.mg >= 0 && x.mg <= 1000).slice(0, 200);
   if (Array.isArray(d.prs)) out.prs = d.prs.filter((x) => x && x.id && x.exId && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.w > 0 && x.w < 1000 && x.r >= 1 && x.r <= 50).sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 500);
   if (Array.isArray(d.myFoods)) out.myFoods = d.myFoods.filter((x) => x && x.id && x.name && x.kcal >= 0 && x.kcal <= 950).slice(0, 500);
+  if (d.wallet && /^[A-Z2-9]{20}$/.test(d.wallet.code || '')) out.wallet = { code: d.wallet.code }; // Kauf-Code fürs Scan-Guthaben
   if (Array.isArray(d.supps)) out.supps = d.supps.filter((x) => x && x.id && x.name && /^\d{2}:\d{2}$/.test(x.time)).slice(0, 30);
   if (d.suppDone && typeof d.suppDone === 'object') {
     // nur die letzten 60 Tage behalten

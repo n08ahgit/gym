@@ -1239,3 +1239,48 @@ html.kb-open .sheet-panel { padding-bottom: 16px; }
 .acct-form { display: flex; flex-direction: column; gap: 10px; }
 .acct-form .gfield input { font-size: 1.06rem; font-weight: 600; }
 .danger-text { color: var(--red); }
+
+/* ---------- KI-Scan, Kauf, Rechtliches ---------- */
+.ki-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 4px; }
+.ki-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.ki-btn svg { width: 17px; height: 17px; flex: none; }
+.scan-busy { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 30px 10px 40px; text-align: center; }
+.spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--surface-2); border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+.ki-note { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius); background: rgba(217, 138, 151, 0.1); color: var(--text); font-size: 0.86rem; margin: 0 0 10px; }
+.ki-note svg { flex: none; width: 18px; height: 18px; color: var(--accent); margin-top: 1px; }
+.scan-rows { display: flex; flex-direction: column; gap: 8px; }
+.scan-row { display: flex; flex-direction: column; gap: 6px; padding: 10px 8px 10px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--hairline); }
+.scan-row.off { opacity: 0.45; }
+.scan-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.scan-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.scan-kcal { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.scan-top .icon-btn { flex: none; min-width: 36px; min-height: 36px; }
+.scan-bot { display: flex; align-items: center; gap: 10px; }
+.scan-meta { flex: 1; min-width: 0; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; line-height: 1.45; }
+.scan-meta .text-btn { font-size: inherit; padding: 0; min-height: 0; display: inline; }
+.scan-bot .field.mini { flex: none; width: 6.2em; }
+.scan-conf { font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+.scan-conf.c-niedrig { color: #d9a45a; }
+.scan-sum { margin: 12px 2px 0; }
+.consent-text p { margin: 0 0 10px; font-size: 0.92rem; }
+.check-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 2px; font-size: 0.9rem; line-height: 1.4; }
+.check-row input { flex: none; width: 22px; height: 22px; margin-top: 1px; accent-color: var(--accent-fill); }
+.check-row .text-btn { padding: 0; min-height: 0; font-size: inherit; display: inline; }
+.order-card { padding: 12px 14px; border-radius: var(--radius-lg); background: var(--surface); border: 1px solid var(--hairline); margin-bottom: 8px; }
+.order-line { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 4px 0; }
+.order-line.total { border-top: 1px solid var(--separator); margin-top: 6px; padding-top: 8px; }
+.order-price { flex: none; }
+.btn:disabled { opacity: 0.5; }
+.kauf-code { font: 700 1.05rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; padding: 10px 12px; border-radius: var(--radius); background: var(--surface); text-align: center; overflow-wrap: anywhere; user-select: all; -webkit-user-select: all; }
+.legal-body { font-size: 0.92rem; line-height: 1.55; overflow-wrap: anywhere; }
+.legal-body h1 { display: none; }
+.legal-body h2 { font-size: 1rem; margin: 18px 0 6px; }
+.legal-body ul { padding-left: 18px; }
+.legal-body .draft { padding: 10px 12px; border-radius: var(--radius); background: rgba(217, 164, 90, 0.14); border: 1px solid rgba(217, 164, 90, 0.5); }
+.legal-body .ph { background: rgba(217, 138, 151, 0.25); border-radius: 4px; padding: 0 3px; }
+.cheer-rep { flex: none; align-self: center; font-size: 0.75rem; font-weight: 700; color: var(--muted); padding: 6px 8px; }
+.ld-legal { margin-top: 18px; font-size: 0.8rem; color: var(--muted); line-height: 1.9; text-align: center; }
+.ld-legal a { color: var(--muted); }
+.ki-btns[hidden] { display: none; }
