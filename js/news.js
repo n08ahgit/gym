@@ -22,6 +22,7 @@ export const NEWS = [
   { id: 'wtedit', title: 'Training während des Trainings bearbeiten', text: 'Übungen hinzufügen, tauschen oder entfernen, Sätze und Pause ändern, Reihenfolge – und nach dem letzten Satz noch einen dranhängen. Nur für dieses Workout, der Plan bleibt.', where: 'Im Workout → „Bearbeiten“' },
   { id: 'warmup', title: 'Aufwärmsätze', text: 'Vor dem ersten Satz: 6 Wdh. mit 40 % und 6 mit 80 % deines Arbeitsgewichts (bestes Ergebnis in Studien) – Gewichte rechnet die App aus. Abhaken, überspringen oder eigenes Schema.', where: 'Im Workout · Einstellungen → „Aufwärmsätze“' },
   { id: 'account', title: 'Konto: Daten auf allen Geräten', text: 'Mit Name und Passwort anmelden – Workouts, Plan, Ernährung und Rekorde sind auf allen Geräten gleich und aktualisieren sich automatisch. Ende-zu-Ende verschlüsselt.', where: 'Einstellungen → „Konto“' },
+  { id: 'kiscan', title: 'KI-Kalorien-Scan', text: 'Essen fotografieren oder beschreiben – die KI schätzt Zutaten und Gramm, du prüfst und trägst ein. 10 Scans gratis zum Ausprobieren.', where: 'Ernährung → „Essen eintragen“ → „KI-Scan“' },
 ];
 
 const KEY = 'gym.newsSeen';
