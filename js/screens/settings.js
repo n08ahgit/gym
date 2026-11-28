@@ -54,7 +54,7 @@ export const settingsScreen = {
               <button class="seg-item${data.settings.unit === 'lb' ? '' : ' on'}" data-action="unit" data-u="kg">kg</button>
               <button class="seg-item${data.settings.unit === 'lb' ? ' on' : ''}" data-action="unit" data-u="lb">lb</button>
             </div></div>
-          ${setRow('openScan', ICON.food, 'KI-Scan', 'Guthaben, Kauf-Code, Scans kaufen')}
+          ${setRow('openScan', ICON.food, 'KI-Scan', 'Guthaben, Kauf-Code, Scans kaufen').replace('<button', '<button id="scanRow" hidden')}
           ${setRow('openWarm', ICON.dumbbell, 'Aufwärmsätze', warmLabel())}
           ${setRow('openPush', ICON.bell, 'Mitteilungen', pushLabel())}
           ${setRow('openBackup', ICON.shield, 'Datensicherung', exportShort())}
@@ -87,6 +87,8 @@ export const settingsScreen = {
   after(root) {
     // Angeschaut = gesehen: roter Punkt weg (die „Neu“-Markierung bleibt bis zum nächsten Öffnen sichtbar)
     markSeen();
+    // KI-Scan-Eintrag nur zeigen, wenn der Scan freigeschaltet ist
+    import('../scan.js').then((m) => m.shopStatus()).then((st) => { if (st.scan) document.getElementById('scanRow')?.removeAttribute('hidden'); }).catch(() => {});
     // Rechtstexte erst zeigen, wenn sie fertig sind (Entwürfe bleiben verborgen)
     finalLegal().then((fin) => { for (const [k, ok] of Object.entries(fin)) if (ok) document.querySelector(`#legalList [data-k="${k}"]`)?.removeAttribute('hidden'); });
     document.querySelector('.tab-dot')?.remove();
