@@ -143,9 +143,15 @@ export function setWeightUnit(u) {
   save();
 }
 
+// Wer bei jeder Änderung Bescheid bekommen will (z. B. Konto-Abgleich)
+const saveHooks = [];
+export const onSave = (fn) => saveHooks.push(fn);
+let quietSave = false;
+
 export function save() {
   try {
     localStorage.setItem(DATA_KEY, JSON.stringify(data));
+    if (!quietSave) for (const fn of saveHooks) { try { fn(); } catch (e) { console.error(e); } }
     return true;
   } catch (e) {
     console.error(e);
@@ -350,6 +356,14 @@ export function exportJSON() {
 }
 
 /** Import: ersetzt alle Daten. Wirft Fehler bei ungültiger Datei. */
+/** Daten komplett ersetzen (z. B. nach dem Abgleich mit dem Konto) – ohne neuen Abgleich auszulösen. */
+export function replaceData(d) {
+  data = normalize(d);
+  units.w = data.settings.unit === 'lb' ? 'lb' : 'kg';
+  quietSave = true;
+  try { save(); } finally { quietSave = false; }
+}
+
 export function importJSON(text) {
   const parsed = JSON.parse(text);
   const src = parsed && parsed.data ? parsed.data : parsed;

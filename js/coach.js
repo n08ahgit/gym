@@ -299,3 +299,52 @@ export function bodyTrend(list = data.body) {
   }
   return { current: now, last, perWeek, pct, verdict, tone };
 }
+
+// ---------- Aufwärmsätze ----------
+//
+// Studienlage (Stand 11/2026): Ribeiro et al. 2020 (IJERPH 17:6882, 40 trainierte Männer):
+// 6 Wdh. mit 40 % + 6 Wdh. mit 80 % des Trainingsgewichts → bestes Ergebnis beim Bankdrücken,
+// 6 × 80 % allein am besten bei Kniebeugen; nur leicht (6 × 40 %) reicht nicht.
+// Viveiros et al. 2024: 5 Wdh. mit 80 % des 10RM-Gewichts → mehr Gesamtvolumen als 40/60 %.
+// Prozente beziehen sich auf das Arbeitsgewicht des ersten Satzes, nicht auf das 1RM.
+
+/** Vorlagen: [Anteil vom Arbeitsgewicht, Wiederholungen] je Aufwärmsatz. */
+export const WARM_PRESETS = {
+  rec: { label: 'Empfohlen (Studie)', sub: '6 Wdh. mit 40 % · 6 Wdh. mit 80 %', sets: [[0.4, 6], [0.8, 6]] },
+  short: { label: 'Kurz', sub: '6 Wdh. mit 80 %', sets: [[0.8, 6]] },
+  custom: { label: 'Eigene', sub: 'Prozent und Wiederholungen selbst wählen', sets: null },
+  off: { label: 'Aus', sub: 'Keine Aufwärmsätze anzeigen', sets: [] },
+};
+
+/** Eigene Aufwärm-Sätze prüfen: 1–4 Sätze, 20–95 %, 1–20 Wdh. */
+export function cleanWarm(sets) {
+  return (Array.isArray(sets) ? sets : []).slice(0, 4)
+    .map((x) => [Math.round(Number(x?.[0]) * 100) / 100, Math.round(Number(x?.[1]))])
+    .filter(([p, r]) => p >= 0.2 && p <= 0.95 && r >= 1 && r <= 20);
+}
+
+/** Gewähltes Schema (Standard: Studien-Empfehlung). */
+export function warmScheme() {
+  const w = data.settings.warm || {};
+  if (w.preset === 'custom') { const c = cleanWarm(w.custom); return c.length ? c : WARM_PRESETS.rec.sets; }
+  return (WARM_PRESETS[w.preset] || WARM_PRESETS.rec).sets;
+}
+
+/** Aufwärmgewicht: Anteil vom Arbeitsgewicht, auf sinnvolle Schritte gerundet, Langhantel mind. leere Stange. */
+export function warmLoad(exId, workKg, pct) {
+  const eq = equipment(exId);
+  if (exUnit(exId) === 'lb') {
+    const lb = toU(workKg * pct, 'lb');
+    const r = roundTo(lb, 5);
+    return fromU(eq === 'barbell' ? Math.max(45, r) : Math.max(5, r), 'lb');
+  }
+  const raw = workKg * pct;
+  const step = eq === 'barbell' ? 2.5 : eq === 'dumbbell' ? (raw < 10 ? 1 : raw < 20 ? 2 : 2.5) : LOWER_BIG.has(exId) ? 5 : 2.5;
+  const r = roundTo(raw, step);
+  return eq === 'barbell' ? Math.max(20, r) : Math.max(step, r);
+}
+
+/** Aufwärmsätze für eine Übung. workKg unbekannt → nur Prozente (w = null). */
+export function warmSets(exId, workKg) {
+  return warmScheme().map(([pct, r]) => ({ pct, r, w: workKg > 0 ? Math.min(warmLoad(exId, workKg, pct), workKg) : null }));
+}

@@ -20,6 +20,8 @@ export const NEWS = [
   { id: 'cheer', title: 'Freunde anfeuern', text: 'Trainiert ein Freund gerade (grüner Ring), kannst du ihm eine Motivationsnachricht schicken – mit eigenem Text oder ohne.', where: 'Freunde → Freund antippen' },
   { id: 'prs', title: 'Rekorde selbst eintragen', text: 'Bestwerte von vor der App oder aus einem Maximaltest eintragen – zählen als Bestwert, für die Rekord-Erkennung im Workout und in der Freunde-Rangliste.', where: 'Fortschritt → Kraft → „+ Rekord“' },
   { id: 'wtedit', title: 'Training während des Trainings bearbeiten', text: 'Übungen hinzufügen, tauschen oder entfernen, Sätze und Pause ändern, Reihenfolge – und nach dem letzten Satz noch einen dranhängen. Nur für dieses Workout, der Plan bleibt.', where: 'Im Workout → „Bearbeiten“' },
+  { id: 'warmup', title: 'Aufwärmsätze', text: 'Vor dem ersten Satz: 6 Wdh. mit 40 % und 6 mit 80 % deines Arbeitsgewichts (bestes Ergebnis in Studien) – Gewichte rechnet die App aus. Abhaken, überspringen oder eigenes Schema.', where: 'Im Workout · Einstellungen → „Aufwärmsätze“' },
+  { id: 'account', title: 'Konto: Daten auf allen Geräten', text: 'Mit Name und Passwort anmelden – Workouts, Plan, Ernährung und Rekorde sind auf allen Geräten gleich und aktualisieren sich automatisch. Ende-zu-Ende verschlüsselt.', where: 'Einstellungen → „Konto“' },
 ];
 
 const KEY = 'gym.newsSeen';

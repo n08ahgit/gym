@@ -24,7 +24,7 @@ import { esc, fmtClock, fmtElapsed, fmtDurationLong, fmtNum, parseNum, parseRest
 import { ICON } from './icons.js';
 import { computeStreak, celebrationFor } from '../streak.js';
 import { showCelebration } from '../celebrate.js';
-import { suggest, hasPlates, checkRecord, perDumbbell, dumbbells } from '../coach.js';
+import { suggest, hasPlates, checkRecord, perDumbbell, dumbbells, repRange, warmSets } from '../coach.js';
 import { showRecord } from '../record.js';
 import { autoBackup } from '../backup.js';
 import { openExerciseInfo, openPlates } from './exinfo.js';
@@ -341,7 +341,7 @@ function viewExercise() {
         <button class="glass-circle sm" data-action="info" aria-label="Ausführung und Tipps">${ICON.info}</button>
       </div>
       <p class="ex-muscles">${esc(muscleNames(it.primary))} · <button class="text-btn order-link" data-action="order">${ICON.edit} Bearbeiten</button></p>
-      ${bodyImage(it.primary, it.secondary)}
+      ${warmCard(it, ph) || bodyImage(it.primary, it.secondary)}
       <div class="set-head">${prevPos() ? `<button class="text-btn back-set" data-action="prevSet" aria-label="Einen Satz zurück">${ICON.back}<span>Zurück</span></button>` : ''}<span class="set-label">Satz ${s + 1} von ${it.sets}</span><span class="dots">${dots}</span></div>
       <p class="last">${it.uni ? '<span class="uni-tag">einseitig</span> ' : ''}Letztes Mal: ${last ? `<b>${fmtSet(last, ' × ', u).replace(' × ', ` ${u}${perDumbbell(it.exId) ? ' pro Hantel' : ''} × `)}</b>` : '<b>–</b> (noch keine Werte)'}</p>
       <div class="inputs${it.uni ? ' uni' : ''}">
@@ -362,6 +362,59 @@ function viewExercise() {
         <button class="btn ghost" data-action="skipEx">Übung überspringen</button>
       </div>
     </footer>`;
+}
+
+// ---------- Aufwärmsätze (optional, vor dem ersten Satz) ----------
+
+/** Wurde dieser Muskel in diesem Workout schon trainiert? Dann ist Aufwärmen nur optional. */
+function warmedBefore(i) {
+  const prim = active.items[i].primary || [];
+  return active.items.slice(0, i).some((x) => x.results.some((r) => r?.status === 'done') && (x.primary || []).some((m) => prim.includes(m)));
+}
+
+/** Arbeitsgewicht für Satz 1: Vorschlag „mehr Gewicht“, sonst letztes Mal. */
+function workWeight(it, ph) {
+  const sug = suggest(it.exId);
+  return sug.kind === 'up' && sug.w ? sug.w : ph?.w || null;
+}
+
+function warmCard(it, ph) {
+  const i = active.cur.ex;
+  if (active.cur.set !== 0 || it.results.some(Boolean) || !repRange(it.exId)) return '';
+  if (ph && !ph.w) return ''; // Körpergewicht ohne Zusatzlast
+  const w = it.warm || {};
+  if (w.skip) return '';
+  const sets = warmSets(it.exId, workWeight(it, ph));
+  if (!sets.length) return '';
+  const u = exUnit(it.exId);
+  const rec = !warmedBefore(i);
+  if (!rec && !w.open && !w.done?.some(Boolean)) {
+    return `<button class="chip warm-chip" data-action="warmOpen">${ICON.plus} Aufwärmsätze (optional)</button>`;
+  }
+  const all = sets.every((_, k) => w.done?.[k]);
+  const rows = sets.map((x, k) => `<button class="warm-row${w.done?.[k] ? ' done' : ''}" data-action="warmSet" data-i="${k}" aria-pressed="${!!w.done?.[k]}">
+      <span class="warm-check" aria-hidden="true">${ICON.check}</span>
+      <span class="warm-load">${x.w != null ? `${fmtNum(x.r)} × ${fmtWU(x.w, u)}${perDumbbell(it.exId) ? ' <small>pro Hantel</small>' : ''}` : `${fmtNum(x.r)} Wdh. mit ${Math.round(x.pct * 100)} %`}</span>
+      <span class="warm-pct">${Math.round(x.pct * 100)} %</span></button>`).join('');
+  return `<section class="warm" aria-label="Aufwärmsätze">
+    <div class="warm-head"><b>Aufwärmen</b><span class="warm-tag${rec ? ' rec' : ''}">${rec ? 'empfohlen' : 'optional'}</span>
+      <button class="icon-btn sm warm-info" data-action="warmInfo" aria-label="Warum so aufwärmen?">${ICON.info}</button></div>
+    ${sets.some((x) => x.w == null) ? '<p class="muted small">Prozent vom Gewicht, mit dem du gleich deinen ersten Satz machst.</p>' : ''}
+    <div class="warm-rows">${rows}</div>
+    ${all ? `<button class="btn primary full warm-go" data-action="warmRest">Aufgewärmt ✓ · Pause ${fmtClock(it.rest || active.restDefault || 120)} starten</button>`
+      : '<button class="text-btn muted warm-skip" data-action="warmSkip">Ohne Aufwärmen weiter</button>'}
+  </section>`;
+}
+
+function openWarmInfo() {
+  openSheet(`<h2 class="sheet-title">Warum so aufwärmen?</h2>
+    <p>Kurz und schwer statt lang und leicht: In einer Studie mit 40 trainierten Männern brachten <b>6 Wdh. mit 40 %</b> und danach <b>6 Wdh. mit 80 %</b> deines Arbeitsgewichts beim Bankdrücken die beste Leistung, bei Kniebeugen reichte schon 6 × 80 %. Nur leicht aufwärmen (6 × 40 %) war am schwächsten.</p>
+    <p class="muted small">Ribeiro et al. 2020 (IJERPH) · Viveiros et al. 2024: 5 Wdh. mit 80 % → mehr Gesamtvolumen als 40 oder 60 %.</p>
+    <p>Die Prozente beziehen sich auf das Gewicht deines ersten Satzes (nicht dein Maximum). Die App rechnet es aus dem letzten Training bzw. dem Vorschlag aus und rundet auf passende Scheiben/Hanteln.</p>
+    <p class="muted small">Wichtig zu wissen: Die Studien sind klein und nur mit Bankdrücken und Kniebeugen gemacht. Für die zweite Übung derselben Muskeln zeigt die App das Aufwärmen nur noch als optional.</p>
+    <div class="sheet-actions"><button class="btn big" data-action="settings">Aufwärmen anpassen</button></div>`, {
+    settings: () => { closeSheet(); import('./settings.js').then((m) => m.openWarmSettings()); },
+  });
 }
 
 /** Vorschlag für heute (doppelte Progression) + Scheibenrechner. */
@@ -678,6 +731,19 @@ export const workoutScreen = {
     },
 
     editSet: (el) => openEditSet(+el.dataset.ex, +el.dataset.set),
+    warmSet: (el) => {
+      const it = curItem();
+      it.warm ||= {};
+      it.warm.done ||= [];
+      const k = +el.dataset.i;
+      it.warm.done[k] = !it.warm.done[k];
+      persist();
+      render();
+    },
+    warmOpen: () => { const it = curItem(); it.warm = { ...(it.warm || {}), open: true }; persist(); render(); },
+    warmSkip: () => { const it = curItem(); it.warm = { ...(it.warm || {}), skip: true }; persist(); transition(render); },
+    warmRest: () => { const it = curItem(); it.warm = { ...(it.warm || {}), skip: true }; startRest(it.rest || active.restDefault || 120); transition(render); },
+    warmInfo: () => openWarmInfo(),
     order: () => openEditSheet(),
 
     useSug: () => {

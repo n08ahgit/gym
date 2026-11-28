@@ -226,6 +226,7 @@ export function closeSheet(instant = false, viaSwipe = false) {
   const finish = () => {
     if (token !== sheetToken) return; // inzwischen neues Sheet geöffnet
     sheetEl.hidden = true;
+    window.dispatchEvent(new Event('gym:sheetclosed'));
     sheetEl.classList.remove('closing');
     sheetEl.innerHTML = '';
     document.documentElement.classList.remove('sheet-open');
@@ -341,6 +342,9 @@ document.addEventListener('input', (e) => {
   const fn = (!sheetEl.hidden && sheetActions?.inputs?.[el.dataset.input]) || screens[ui.screen].inputs?.[el.dataset.input];
   fn?.(el, e);
 });
+
+// Formulare (Anmelden) nie wirklich absenden – sonst lädt die Seite neu
+document.addEventListener('submit', (e) => e.preventDefault());
 
 // Enter in einem Feld mit data-enter="aktion" löst die Aktion aus
 document.addEventListener('keydown', (e) => {
@@ -663,6 +667,29 @@ const checkSub = async (force = false) => {
 };
 setTimeout(() => checkSub(true), 2500);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkSub(); });
+
+// ---------- Konto: Daten auf allen Geräten aktuell halten ----------
+// Beim Start, beim Zurückkehren in die App und alle 30 s solange sie offen ist (Änderungen
+// auf diesem Gerät lösen zusätzlich nach 2,5 s einen Abgleich aus – siehe account.js).
+if (!window.GYM_DEMO) {
+  import('./account.js').then((acct) => {
+    // Neue Daten von einem anderen Gerät: neu zeichnen, außer man tippt gerade oder hat ein Fenster offen
+    let pending = false;
+    const refresh = () => {
+      const typing = document.activeElement?.matches?.('input, textarea');
+      if (!sheetEl.hidden || typing) { pending = true; return; }
+      pending = false;
+      render();
+    };
+    acct.onSynced(refresh);
+    document.addEventListener('focusout', () => { if (pending) setTimeout(refresh, 300); });
+    const tick = () => { if (document.visibilityState === 'visible') acct.syncNow(); };
+    setTimeout(tick, 1500);
+    document.addEventListener('visibilitychange', tick);
+    setInterval(tick, 30000);
+    window.addEventListener('gym:sheetclosed', () => { if (pending) refresh(); });
+  }).catch(() => {});
+}
 
 // Anfeuern: per Push (Nachricht vom Service Worker) oder beim Öffnen abholen
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.cheer) import('./cheer.js').then((c) => c.showCheer(e.data.cheer)); });

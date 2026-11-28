@@ -2,8 +2,9 @@
 // settings.js – Export / Import (JSON), eigene Übungen, Daten löschen
 // =============================================================
 
-import { go, render, ask, toast, openSheet } from '../app.js';
-import { data, importJSON, removeCustomExercise, wipeAll, resetTraining, setWeightUnit } from '../store.js';
+import { go, render, ask, toast, openSheet, closeSheet } from '../app.js';
+import { data, save, importJSON, removeCustomExercise, wipeAll, resetTraining, setWeightUnit } from '../store.js';
+import { WARM_PRESETS, warmScheme, cleanWarm } from '../coach.js';
 import { listSnapshots, getSnapshot, exportFile, daysSinceExport, autoBackup } from '../backup.js';
 import { status as pushStatus, enable as pushEnable, disable as pushDisable, scheduleRestPush, lastDelivery, diagnose } from '../push.js';
 import { esc, APP_VERSION, fmtDateLong } from '../util.js';
@@ -46,11 +47,13 @@ export const settingsScreen = {
         ${newsCard()}
 
         <section class="card list-card set-list">
+          ${setRow('openAccount', ICON.users, 'Konto', acctLabel())}
           <div class="set-row unit-row"><span class="set-ic">${ICON.scale}</span><span class="lr-main"><span class="lr-title">Gewichtseinheit</span></span>
             <div class="seg-wrap" role="group" aria-label="Gewichtseinheit">
               <button class="seg-item${data.settings.unit === 'lb' ? '' : ' on'}" data-action="unit" data-u="kg">kg</button>
               <button class="seg-item${data.settings.unit === 'lb' ? ' on' : ''}" data-action="unit" data-u="lb">lb</button>
             </div></div>
+          ${setRow('openWarm', ICON.dumbbell, 'Aufwärmsätze', warmLabel())}
           ${setRow('openPush', ICON.bell, 'Mitteilungen', pushLabel())}
           ${setRow('openBackup', ICON.shield, 'Datensicherung', exportShort())}
           ${setRow('openCustom', ICON.dumbbell, 'Eigene Übungen', data.customExercises.length ? `${data.customExercises.length} angelegt` : 'Noch keine')}
@@ -94,6 +97,8 @@ export const settingsScreen = {
       try { localStorage.setItem(NEWS_OPEN, open ? '1' : '0'); } catch { /* egal */ }
     },
     openPush: () => openPushSheet(),
+    openAccount: () => openAccountSheet(),
+    openWarm: () => openWarmSettings(() => render()),
     openBackup: () => openBackupSheet(),
     openCustom: () => openCustomSheet(),
     openFeedback: () => openFeedbackSheet(),
@@ -150,7 +155,7 @@ export const settingsScreen = {
     resetTraining: async () => {
       if (!data.sessions.length && !data.prs.length) return toast('Noch keine Workouts – du startest schon bei null');
       if (!(await confirm3([
-        ['Fortschritt zurücksetzen?', `Alle ${data.sessions.length} Workouts, Rekorde, Streak und Kraftverlauf werden gelöscht – du startest bei null. Plan, Freunde, Ernährung, Supplements und Körpergewicht bleiben.`, 'Weiter'],
+        ['Fortschritt zurücksetzen?', `Alle ${data.sessions.length} Workouts, Rekorde, Streak und Kraftverlauf werden gelöscht – du startest bei null. Plan, Freunde, Ernährung, Supplements und Körpergewicht bleiben.${localStorage.getItem('gym.acct') ? ' Gilt für alle Geräte deines Kontos.' : ''}`, 'Weiter'],
         ['Wirklich sicher?', 'Dein ganzer Trainingsverlauf ist danach weg. Vorher wird eine Sicherung gemacht (14 Tage unter „Datensicherung“).', 'Ja, sicher'],
         ['Letzte Bestätigung', `Jetzt ${data.sessions.length} Workouts endgültig zurücksetzen?`, 'Zurücksetzen'],
       ]))) return;
@@ -169,6 +174,7 @@ export const settingsScreen = {
         ['Letzte Bestätigung', 'Jetzt alle Daten endgültig löschen?', 'Alles löschen'],
       ]))) return;
       await autoBackup('-vor-loeschen');
+      await (await acct()).logout(); // nur dieses Gerät leeren – das Konto bleibt
       wipeAll();
       discardActive();
       toast('Alle Daten gelöscht');
@@ -223,6 +229,151 @@ async function confirm3(steps) {
 }
 
 // ---------- Zeilen + Unterfenster ----------
+
+// ---------- Konto ----------
+
+let acctMod = null;
+const acct = async () => (acctMod ||= await import('../account.js'));
+function acctLabel() {
+  try { const s = JSON.parse(localStorage.getItem('gym.acct') || 'null'); return s?.u ? `Angemeldet als ${esc(s.u)} · Daten auf allen Geräten` : 'Anmelden – Daten auf allen Geräten'; } catch { return 'Anmelden'; }
+}
+const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return !t ? 'noch nie' : m < 1 ? 'gerade eben' : m < 60 ? `vor ${m} min` : `vor ${Math.round(m / 60)} h`; };
+
+export async function openAccountSheet(mode = 'login') {
+  const A = await acct();
+  const s = A.session();
+  const busy = (el, on, label) => { if (!el) return; el.disabled = on; if (label) el.textContent = label; };
+  if (s) {
+    const st = A.syncStatus();
+    openSheet(`<h2 class="sheet-title">Konto</h2>
+      <p class="sheet-sub">Angemeldet als <b>${esc(s.u)}</b></p>
+      <p class="muted small">Zuletzt abgeglichen: ${ago(st.last)}${st.error ? ` · <span class="danger-text">${esc(st.error)}</span>` : ''}</p>
+      <p class="muted small">Melde dich auf deinen anderen Geräten mit demselben Namen und Passwort an – Workouts, Plan, Ernährung, Rekorde und Einstellungen sind dann überall gleich und aktualisieren sich automatisch. Ende-zu-Ende verschlüsselt: Nur du kannst die Daten lesen.</p>
+      <div class="sheet-actions">
+        <button class="btn primary big" data-action="sync">Jetzt abgleichen</button>
+        <button class="btn big" data-action="pw">Passwort ändern</button>
+        <button class="btn ghost big" data-action="out">Abmelden</button>
+        <button class="btn ghost big danger" data-action="del">Konto löschen</button>
+      </div>`, {
+      sync: async (el) => { busy(el, true, 'Gleiche ab …'); const ok = await A.syncNow(); toast(ok ? 'Alles aktuell' : `Abgleich fehlgeschlagen: ${A.syncStatus().error || 'offline?'}`); openAccountSheet(); },
+      pw: () => openPasswordSheet(),
+      out: async () => {
+        if (!(await ask('Abmelden?', 'Deine Daten bleiben auf diesem Gerät und im Konto. Neue Änderungen werden dann nicht mehr abgeglichen.', 'Abmelden'))) return;
+        await A.logout(); closeSheet(); toast('Abgemeldet'); render();
+      },
+      del: async () => {
+        if (!(await confirm3([
+          ['Konto löschen?', 'Das Konto und alle Daten darin werden vom Server gelöscht. Auf diesem Gerät bleibt alles erhalten.', 'Weiter'],
+          ['Wirklich sicher?', 'Andere Geräte werden abgemeldet und gleichen nichts mehr ab.', 'Konto löschen'],
+        ]))) return;
+        try { await A.deleteAccount(); closeSheet(); toast('Konto gelöscht – Daten bleiben auf diesem Gerät'); render(); } catch (e) { toast(e.message); }
+      },
+    });
+    return;
+  }
+  const reg = mode === 'register';
+  openSheet(`<h2 class="sheet-title">${reg ? 'Konto erstellen' : 'Anmelden'}</h2>
+    <p class="muted small sheet-sub">Deine Daten auf allen Geräten – iPhone, iPad, Android, Browser – immer automatisch aktuell. Ende-zu-Ende verschlüsselt: Nicht einmal der Server kann sie lesen.</p>
+    <div class="seg-wrap acct-seg" role="tablist">
+      <button class="seg-item${reg ? '' : ' on'}" data-action="mode" data-m="login" role="tab" aria-selected="${!reg}">Anmelden</button>
+      <button class="seg-item${reg ? ' on' : ''}" data-action="mode" data-m="register" role="tab" aria-selected="${reg}">Neues Konto</button>
+    </div>
+    <form class="acct-form" id="acctForm" autocomplete="on">
+      <label class="gfield"><span>Name</span><input id="acU" name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="24" placeholder="z. B. noah.h" data-enter="go"></label>
+      <label class="gfield"><span>Passwort${reg ? ' (mind. 8 Zeichen)' : ''}</span><input id="acP" name="password" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" data-enter="${reg ? 'next' : 'go'}"></label>
+      ${reg ? '<label class="gfield"><span>Passwort wiederholen</span><input id="acP2" type="password" autocomplete="new-password" data-enter="go"></label>' : ''}
+    </form>
+    ${reg ? '<p class="note small">Wichtig: Passwort gut merken (oder Passwort-Manager). Vergessen = Daten auf dem Server nicht mehr lesbar – auf deinen Geräten bleiben sie, dort kannst du ein neues setzen.</p>' : ''}
+    <div class="sheet-actions"><button class="btn primary big" data-action="go">${reg ? 'Konto erstellen' : 'Anmelden'}</button></div>
+    ${data.sessions.length || data.food.length ? `<p class="muted small center-text">Deine Daten auf diesem Gerät werden mit dem Konto zusammengeführt – nichts geht verloren.</p>` : ''}`, {
+    mode: (el) => openAccountSheet(el.dataset.m),
+    next: () => document.getElementById('acP2')?.focus(),
+    go: async () => {
+      const btn = document.querySelector('#sheet [data-action=go]');
+      const u = document.getElementById('acU').value, p = document.getElementById('acP').value;
+      if (reg && p !== document.getElementById('acP2').value) return toast('Passwörter stimmen nicht überein');
+      busy(btn, true, reg ? 'Erstelle Konto …' : 'Melde an …');
+      try {
+        await (reg ? A.register(u, p) : A.login(u, p));
+        closeSheet();
+        toast(reg ? 'Konto erstellt – jetzt auf anderen Geräten anmelden' : 'Angemeldet – Daten abgeglichen');
+        render();
+      } catch (e) {
+        busy(btn, false, reg ? 'Konto erstellen' : 'Anmelden');
+        toast(e.message);
+      }
+    },
+  });
+  setTimeout(() => document.getElementById('acU')?.focus(), 350);
+}
+
+function openPasswordSheet() {
+  openSheet(`<h2 class="sheet-title">Passwort ändern</h2>
+    <p class="muted small sheet-sub">Deine anderen Geräte werden danach abgemeldet – dort einfach mit dem neuen Passwort anmelden.</p>
+    <form class="acct-form">
+      <label class="gfield"><span>Altes Passwort</span><input id="pwO" type="password" autocomplete="current-password"></label>
+      <label class="gfield"><span>Neues Passwort (mind. 8 Zeichen)</span><input id="pwN" type="password" autocomplete="new-password"></label>
+      <label class="gfield"><span>Neues Passwort wiederholen</span><input id="pwN2" type="password" autocomplete="new-password" data-enter="save"></label>
+    </form>
+    <div class="sheet-actions"><button class="btn primary big" data-action="save">Passwort ändern</button></div>`, {
+    save: async (el) => {
+      const n = document.getElementById('pwN').value;
+      if (n !== document.getElementById('pwN2').value) return toast('Neue Passwörter stimmen nicht überein');
+      el.disabled = true; el.textContent = 'Ändere …';
+      try { await (await acct()).changePassword(document.getElementById('pwO').value, n); closeSheet(); toast('Passwort geändert'); }
+      catch (e) { el.disabled = false; el.textContent = 'Passwort ändern'; toast(e.message); }
+    },
+  });
+}
+
+const warmLabel = () => {
+  const p = data.settings.warm?.preset || 'rec';
+  if (p === 'off') return 'Aus';
+  return warmScheme().map(([pct, r]) => `${r} × ${Math.round(pct * 100)} %`).join(' · ');
+};
+
+/** Aufwärmsätze einstellen: Studien-Empfehlung, kurz, eigene oder aus. */
+export function openWarmSettings(onDone = null) {
+  const cur = data.settings.warm || {};
+  let preset = cur.preset || 'rec';
+  let custom = cleanWarm(cur.custom).length ? cleanWarm(cur.custom) : WARM_PRESETS.rec.sets.map((x) => [...x]);
+  const rowsHtml = () => custom.map(([p, r], i) => `<div class="warm-edit">
+      <span class="muted small">Satz ${i + 1}</span>
+      <label class="field sm"><input inputmode="numeric" value="${r}" data-input="wr" data-i="${i}" aria-label="Wiederholungen Satz ${i + 1}"><span>Wdh.</span></label>
+      <label class="field sm"><input inputmode="numeric" value="${Math.round(p * 100)}" data-input="wp" data-i="${i}" aria-label="Prozent Satz ${i + 1}"><span>%</span></label>
+      ${custom.length > 1 ? `<button class="icon-btn sm" data-action="wdel" data-i="${i}" aria-label="Satz ${i + 1} entfernen">${ICON.trash}</button>` : ''}
+    </div>`).join('');
+  const draw = () => `<h2 class="sheet-title">Aufwärmsätze</h2>
+    <p class="muted small sheet-sub">Erscheinen vor dem ersten Satz jeder Übung – abhaken oder überspringen, wie du willst. Prozent vom Gewicht deines ersten Satzes.</p>
+    <div class="list-card sheet-list-card">${Object.entries(WARM_PRESETS).map(([k, v]) => `<button class="list-row board-opt${k === preset ? ' on' : ''}" data-action="preset" data-k="${k}" aria-pressed="${k === preset}">
+      <span class="lr-main"><span class="lr-title">${esc(v.label)}</span><span class="lr-sub">${esc(v.sub)}</span></span>${k === preset ? `<span class="board-check">${ICON.check}</span>` : ''}</button>`).join('')}</div>
+    ${preset === 'custom' ? `<div class="warm-edits" id="warmEdits">${rowsHtml()}</div>
+      ${custom.length < 4 ? '<button class="btn ghost full" data-action="wadd">+ Satz hinzufügen</button>' : ''}` : ''}
+    <div class="sheet-actions"><button class="btn primary big" data-action="wsave">Speichern</button></div>`;
+  const open = () => openSheet(draw(), acts);
+  const acts = {
+    preset: (el) => { preset = el.dataset.k; open(); },
+    wadd: () => { custom.push([0.6, 4]); open(); },
+    wdel: (el) => { custom.splice(+el.dataset.i, 1); open(); },
+    wsave: () => {
+      if (preset === 'custom') {
+        const c = cleanWarm(custom);
+        if (c.length !== custom.length) return toast('Prozent 20–95, Wiederholungen 1–20');
+        custom = c;
+      }
+      data.settings.warm = { preset, ...(preset === 'custom' ? { custom } : cur.custom ? { custom: cleanWarm(cur.custom) } : {}) };
+      save();
+      closeSheet();
+      toast(preset === 'off' ? 'Aufwärmsätze aus' : 'Aufwärmsätze gespeichert');
+      onDone?.();
+    },
+    inputs: {
+      wr: (el) => { custom[+el.dataset.i][1] = parseInt(el.value, 10) || 0; },
+      wp: (el) => { custom[+el.dataset.i][0] = (parseInt(el.value, 10) || 0) / 100; },
+    },
+  };
+  open();
+}
 
 const setRow = (action, icon, title, sub) => `<button class="list-row set-row" data-action="${action}">
   <span class="set-ic">${icon}</span><span class="lr-main"><span class="lr-title">${title}</span><span class="lr-sub">${sub}</span></span>
